@@ -5,13 +5,15 @@ package provider
 
 import (
 	"context"
-	"net/http"
 
+	"github.com/ghaggin/terraform-provider-onelogin/internal/datasources"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/onelogin/onelogin-go-sdk/pkg/client"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
@@ -30,6 +32,7 @@ type oneLoginProviderModel struct {
 	ClientID     types.String `tfsdk:"client_id"`
 	CLientSecret types.String `tfsdk:"client_secret"`
 	URL          types.String `tfsdk:"url"`
+	Region       types.String `tfsdk:"region"`
 }
 
 func (p *oneloginProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -47,44 +50,63 @@ func (p *oneloginProvider) Schema(ctx context.Context, req provider.SchemaReques
 			"client_secret": schema.StringAttribute{
 				MarkdownDescription: "Admin oauth client secret",
 				Required:            true,
+				Sensitive:           true,
 			},
 			"url": schema.StringAttribute{
 				MarkdownDescription: "Instance url",
 				Required:            true,
+			},
+			"region": schema.StringAttribute{
+				MarkdownDescription: "Region",
+				Optional:            true,
 			},
 		},
 	}
 }
 
 func (p *oneloginProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data *oneLoginProviderModel
+	var data oneLoginProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, data)...)
-
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// Configuration values are now available.
 	// if data.Endpoint.IsNull() { /* ... */ }
-	if data.ClientID.IsNull() {
-		resp.Diagnostics.AddError("client_id is required", "")
+	if data.ClientID.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("client_id"), "client_id is required", "")
 	}
 
-	if data.CLientSecret.IsNull() {
-		resp.Diagnostics.AddError("client_secret is required", "")
+	if data.CLientSecret.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("client_secret"), "client_secret is required", "")
 	}
 
-	if data.URL.IsNull() {
-		resp.Diagnostics.AddError("url is required", "")
+	if data.URL.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(path.Root("url"), "url is required", "")
+	}
+
+	region := client.USRegion
+	if !data.Region.IsUnknown() {
+		region = data.Region.ValueString()
 	}
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Example client configuration for data sources and resources
-	client := http.DefaultClient
+	client, err := client.NewClient(&client.APIClientConfig{
+		Timeout:      client.DefaultTimeout,
+		ClientID:     data.ClientID.ValueString(),
+		ClientSecret: data.CLientSecret.ValueString(),
+		Url:          data.URL.ValueString(),
+		Region:       region,
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("failed to create OneLogin client", err.Error())
+		return
+	}
+
 	resp.DataSourceData = client
 	resp.ResourceData = client
 }
@@ -98,6 +120,7 @@ func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Reso
 func (p *oneloginProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
+		datasources.NewOneLoginUser,
 	}
 }
 

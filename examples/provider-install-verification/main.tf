@@ -1,15 +1,17 @@
 terraform {
   required_providers {
     onelogin = {
-        source = "github.com/ghaggin/onelogin"
+      source = "github.com/ghaggin/onelogin"
     }
   }
 }
 
 provider "onelogin" {
-    client_id = "abcd"
-    client_secret = "1234"
-    url = "1234"
+  client_id     = "<client-id>"
+  client_secret = "<client-secret>"
+  url           = "<onelogin-url>"
 }
 
-data "onelogin_user" "test_user1" {}
+data "onelogin_user" "test_user1" {
+  username = "<username>"
+}
