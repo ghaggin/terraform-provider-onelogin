@@ -15,10 +15,10 @@ import (
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
-var _ provider.Provider = &ScaffoldingProvider{}
+var _ provider.Provider = &oneloginProvider{}
 
 // ScaffoldingProvider defines the provider implementation.
-type ScaffoldingProvider struct {
+type oneloginProvider struct {
 	// version is set to the provider version on release, "dev" when the
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
@@ -26,30 +26,40 @@ type ScaffoldingProvider struct {
 }
 
 // ScaffoldingProviderModel describes the provider data model.
-type ScaffoldingProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
+type oneLoginProviderModel struct {
+	ClientID     types.String `tfsdk:"client_id"`
+	CLientSecret types.String `tfsdk:"client_secret"`
+	URL          types.String `tfsdk:"url"`
 }
 
-func (p *ScaffoldingProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
-	resp.TypeName = "scaffolding"
+func (p *oneloginProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
+	resp.TypeName = "onelogin"
 	resp.Version = p.version
 }
 
-func (p *ScaffoldingProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
+func (p *oneloginProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				MarkdownDescription: "Example provider attribute",
-				Optional:            true,
+			"client_id": schema.StringAttribute{
+				MarkdownDescription: "Admin oauth client id",
+				Required:            true,
+			},
+			"client_secret": schema.StringAttribute{
+				MarkdownDescription: "Admin oauth client secret",
+				Required:            true,
+			},
+			"url": schema.StringAttribute{
+				MarkdownDescription: "Instance url",
+				Required:            true,
 			},
 		},
 	}
 }
 
-func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	var data ScaffoldingProviderModel
+func (p *oneloginProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
+	var data *oneLoginProviderModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -57,6 +67,21 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 
 	// Configuration values are now available.
 	// if data.Endpoint.IsNull() { /* ... */ }
+	if data.ClientID.IsNull() {
+		resp.Diagnostics.AddError("client_id is required", "")
+	}
+
+	if data.CLientSecret.IsNull() {
+		resp.Diagnostics.AddError("client_secret is required", "")
+	}
+
+	if data.URL.IsNull() {
+		resp.Diagnostics.AddError("url is required", "")
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Example client configuration for data sources and resources
 	client := http.DefaultClient
@@ -64,13 +89,13 @@ func (p *ScaffoldingProvider) Configure(ctx context.Context, req provider.Config
 	resp.ResourceData = client
 }
 
-func (p *ScaffoldingProvider) Resources(ctx context.Context) []func() resource.Resource {
+func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewExampleResource,
 	}
 }
 
-func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
+func (p *oneloginProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
 	}
@@ -78,7 +103,7 @@ func (p *ScaffoldingProvider) DataSources(ctx context.Context) []func() datasour
 
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
-		return &ScaffoldingProvider{
+		return &oneloginProvider{
 			version: version,
 		}
 	}
