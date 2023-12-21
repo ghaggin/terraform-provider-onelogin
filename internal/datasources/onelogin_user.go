@@ -15,6 +15,9 @@ import (
 	"github.com/onelogin/onelogin-go-sdk/pkg/services/users"
 )
 
+var _ datasource.DataSource = &oneLoginUser{}
+var _ datasource.DataSourceWithConfigure = &oneLoginUser{}
+
 func NewOneLoginUser() datasource.DataSource {
 	return &oneLoginUser{}
 }
@@ -24,7 +27,7 @@ type oneLoginUser struct {
 }
 
 type oneLoginUserModel struct {
-	Id       types.Int64  `tfsdk:"id"`
+	ID       types.Int64  `tfsdk:"id"`
 	Username types.String `tfsdk:"username"`
 }
 
@@ -102,7 +105,7 @@ func (d *oneLoginUser) Read(ctx context.Context, req datasource.ReadRequest, res
 	}
 
 	// Set data values from client response
-	data.Id = types.Int64Value(int64(*users[0].ID))
+	data.ID = types.Int64Value(int64(*users[0].ID))
 	data.Username = types.StringValue(*users[0].Username)
 
 	// Update state

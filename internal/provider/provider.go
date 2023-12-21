@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ghaggin/terraform-provider-onelogin/internal/datasources"
+	"github.com/ghaggin/terraform-provider-onelogin/internal/resources"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -113,13 +114,12 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 
 func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		resources.NewOneLoginRole,
 	}
 }
 
 func (p *oneloginProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewExampleDataSource,
 		datasources.NewOneLoginUser,
 	}
 }
