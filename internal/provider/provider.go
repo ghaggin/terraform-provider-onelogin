@@ -1,13 +1,8 @@
-// Copyright (c) HashiCorp, Inc.
-// SPDX-License-Identifier: MPL-2.0
-
 package provider
 
 import (
 	"context"
 
-	"github.com/ghaggin/terraform-provider-onelogin/internal/datasources"
-	"github.com/ghaggin/terraform-provider-onelogin/internal/resources"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -114,13 +109,13 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 
 func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		resources.NewOneLoginRole,
+		NewOneLoginRole,
 	}
 }
 
 func (p *oneloginProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		datasources.NewOneLoginUser,
+		NewOneLoginUser,
 	}
 }
 
