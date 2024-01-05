@@ -92,7 +92,11 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 	}
 
 	client, err := client.NewClient(&client.APIClientConfig{
-		Timeout:      client.DefaultTimeout,
+		// This needs to be high because some operations are very slow,
+		// but still complete after context cancellation, which leaves
+		// the state inconsistent.
+		Timeout: 60, // seconds (assuming, not documented)
+
 		ClientID:     data.ClientID.ValueString(),
 		ClientSecret: data.CLientSecret.ValueString(),
 		Url:          data.URL.ValueString(),
@@ -110,6 +114,7 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewOneLoginRole,
+		NewOneLoginApp,
 	}
 }
 

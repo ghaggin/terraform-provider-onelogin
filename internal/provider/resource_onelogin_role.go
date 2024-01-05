@@ -31,12 +31,14 @@ type oneLoginRole struct {
 }
 
 type oneLoginRoleModel struct {
-	ID          types.Int64  `tfsdk:"id"`
+	ID     types.Int64  `tfsdk:"id"`
+	Name   types.String `tfsdk:"name"`
+	Admins types.List   `tfsdk:"admins"`
+	Apps   types.List   `tfsdk:"apps"`
+	Users  types.List   `tfsdk:"users"`
+
+	// Note: attribute local to terraform objects
 	LastUpdated types.String `tfsdk:"last_updated"`
-	Name        types.String `tfsdk:"name"`
-	Admins      types.List   `tfsdk:"admins"`
-	Apps        types.List   `tfsdk:"apps"`
-	Users       types.List   `tfsdk:"users"`
 }
 
 func (d *oneLoginRole) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -70,10 +72,6 @@ func (d *oneLoginRole) Schema(ctx context.Context, req resource.SchemaRequest, r
 					int64planmodifier.UseStateForUnknown(),
 				},
 			},
-			"last_updated": schema.StringAttribute{
-				MarkdownDescription: "Timestamp of the last time this role was updated",
-				Computed:            true,
-			},
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Name of the role",
 				Required:            true,
@@ -93,6 +91,12 @@ func (d *oneLoginRole) Schema(ctx context.Context, req resource.SchemaRequest, r
 				MarkdownDescription: "List of user IDs",
 				Optional:            true,
 			},
+
+			// Note: attribute local to terraform objects
+			"last_updated": schema.StringAttribute{
+				MarkdownDescription: "Timestamp of the last time this role was updated",
+				Computed:            true,
+			},
 		},
 	}
 }
@@ -106,7 +110,7 @@ func (d *oneLoginRole) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	role := d.roleFromState(&state)
+	role := d.roleFromState(ctx, &state)
 	err := d.client.Services.RolesV1.Create(role)
 
 	if err != nil || role.ID == nil {
@@ -146,6 +150,8 @@ func (d *oneLoginRole) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
+	newState.LastUpdated = state.LastUpdated
+
 	diags = resp.State.Set(ctx, newState)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -161,7 +167,7 @@ func (d *oneLoginRole) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	role := d.roleFromState(&state)
+	role := d.roleFromState(ctx, &state)
 	err := d.client.Services.RolesV1.Update(role)
 
 	if err != nil || role.ID == nil {
@@ -208,7 +214,7 @@ func (d *oneLoginRole) Delete(ctx context.Context, req resource.DeleteRequest, r
 func (d *oneLoginRole) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	id, err := strconv.Atoi(req.ID)
 	if err != nil {
-		resp.Diagnostics.AddError("Error importing role", "Could not convert provided id to int: "+err.Error())
+		resp.Diagnostics.AddError("Error parsing ID for import role", "Could not parse ID "+req.ID+": "+err.Error())
 		return
 	}
 
@@ -225,20 +231,20 @@ func (d *oneLoginRole) ImportState(ctx context.Context, req resource.ImportState
 	}
 }
 
-func (d *oneLoginRole) roleFromState(state *oneLoginRoleModel) *roles.Role {
-	admins := []int32{}
+func (d *oneLoginRole) roleFromState(ctx context.Context, state *oneLoginRoleModel) *roles.Role {
+	var admins []int32
 	if !state.Admins.IsNull() {
-		state.Admins.ElementsAs(context.Background(), &admins, false)
+		state.Admins.ElementsAs(ctx, &admins, false)
 	}
 
-	apps := []int32{}
+	var apps []int32
 	if !state.Apps.IsNull() {
-		state.Apps.ElementsAs(context.Background(), &apps, false)
+		state.Apps.ElementsAs(ctx, &apps, false)
 	}
 
-	users := []int32{}
+	var users []int32
 	if !state.Users.IsNull() {
-		state.Users.ElementsAs(context.Background(), &users, false)
+		state.Users.ElementsAs(ctx, &users, false)
 	}
 
 	var id *int32 = nil
@@ -277,8 +283,9 @@ func (d *oneLoginRole) read(ctx context.Context, id int64) (*oneLoginRoleModel, 
 		Users:  types.ListNull(types.Int64Type),
 	}
 
-	var newDiags diag.Diagnostics
-	state.Name = types.StringValue(*role.Name)
+	if role.Name != nil {
+		state.Name = types.StringValue(*role.Name)
+	}
 
 	admins, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Admins)
 	diags.Append(newDiags...)
@@ -298,5 +305,5 @@ func (d *oneLoginRole) read(ctx context.Context, id int64) (*oneLoginRoleModel, 
 		state.Users = users
 	}
 
-	return state, nil
+	return state, diags
 }
