@@ -12,84 +12,77 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/onelogin/onelogin-go-sdk/pkg/client"
-	"github.com/onelogin/onelogin-go-sdk/pkg/services/roles"
 )
 
 var (
-	_ resource.Resource                = &oneLoginRole{}
-	_ resource.ResourceWithConfigure   = &oneLoginRole{}
-	_ resource.ResourceWithImportState = &oneLoginRole{}
+	_ resource.Resource                = &oneloginRoleResource{}
+	_ resource.ResourceWithConfigure   = &oneloginRoleResource{}
+	_ resource.ResourceWithImportState = &oneloginRoleResource{}
 )
 
-func NewOneLoginRole() resource.Resource {
-	return &oneLoginRole{}
+func NewOneLoginRoleResource(client *client) newResourceFunc {
+	return func() resource.Resource {
+		return &oneloginRoleResource{
+			client: client,
+		}
+	}
 }
 
-type oneLoginRole struct {
-	client *client.APIClient
+type oneloginRoleResource struct {
+	client *client
 }
 
-type oneLoginRoleModel struct {
-	ID     types.Int64  `tfsdk:"id"`
-	Name   types.String `tfsdk:"name"`
-	Admins types.List   `tfsdk:"admins"`
-	Apps   types.List   `tfsdk:"apps"`
-	Users  types.List   `tfsdk:"users"`
+type oneloginRole struct {
+	ID   types.Int64  `tfsdk:"id"`
+	Name types.String `tfsdk:"name"`
 
-	// Note: attribute local to terraform objects
+	Admins types.List `tfsdk:"admins"`
+	Apps   types.List `tfsdk:"apps"`
+	Users  types.List `tfsdk:"users"`
+
+	// LastUpdated attribute local to terraform object
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
-func (d *oneLoginRole) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
+type oneloginRoleNative struct {
+	ID   int64  `json:"id,omitempty"`
+	Name string `json:"name"`
+
+	Admins []int64 `json:"admins,omitempty"`
+	Apps   []int64 `json:"apps,omitempty"`
+	Users  []int64 `json:"users,omitempty"`
+}
+
+func (d *oneloginRoleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_role"
 }
 
-func (d *oneLoginRole) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-
-	client, ok := req.ProviderData.(*client.APIClient)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *client.APIClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-		return
-	}
-
-	d.client = client
+func (d *oneloginRoleResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 }
 
-func (d *oneLoginRole) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (d *oneloginRoleResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
-				MarkdownDescription: "OneLogin object ID",
-				Computed:            true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
 				},
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "Name of the role",
-				Required:            true,
+				Required: true,
 			},
 			"admins": schema.ListAttribute{
-				ElementType:         types.Int64Type,
-				MarkdownDescription: "List of admin IDs",
-				Optional:            true,
+				ElementType: types.Int64Type,
+				Optional:    true,
 			},
 			"apps": schema.ListAttribute{
-				ElementType:         types.Int64Type,
-				MarkdownDescription: "List of app IDs",
-				Optional:            true,
+				ElementType: types.Int64Type,
+				Optional:    true,
 			},
 			"users": schema.ListAttribute{
-				ElementType:         types.Int64Type,
-				MarkdownDescription: "List of user IDs",
-				Optional:            true,
+				ElementType: types.Int64Type,
+				Optional:    true,
 			},
 
 			// Note: attribute local to terraform objects
@@ -101,19 +94,23 @@ func (d *oneLoginRole) Schema(ctx context.Context, req resource.SchemaRequest, r
 	}
 }
 
-func (d *oneLoginRole) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
+func (d *oneloginRoleResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	// Retrieve values from plan
-	var state oneLoginRoleModel
+	var state oneloginRole
 	diags := req.Plan.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	role := d.roleFromState(ctx, &state)
-	err := d.client.Services.RolesV1.Create(role)
-
-	if err != nil || role.ID == nil {
+	var role oneloginRoleNative
+	err := d.client.execRequest(&oneloginRequest{
+		method:    methodPost,
+		path:      pathRoles,
+		body:      state.toNative(ctx),
+		respModel: &role,
+	})
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error creating role",
 			"Could not create role: "+err.Error(),
@@ -121,9 +118,8 @@ func (d *oneLoginRole) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	newState, diags := d.read(ctx, int64(*role.ID))
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	newState, diags := d.read(ctx, role.ID)
+	if diags.HasError() {
 		return
 	}
 
@@ -136,8 +132,8 @@ func (d *oneLoginRole) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 }
 
-func (d *oneLoginRole) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var state oneLoginRoleModel
+func (d *oneloginRoleResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state oneloginRole
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -159,18 +155,26 @@ func (d *oneLoginRole) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 }
 
-func (d *oneLoginRole) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var state oneLoginRoleModel
+func (d *oneloginRoleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var state oneloginRole
 	diags := req.Plan.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	role := d.roleFromState(ctx, &state)
-	err := d.client.Services.RolesV1.Update(role)
+	body := state.toNative(ctx)
+	body.ID = 0 // zero out id to omit from the json body
 
-	if err != nil || role.ID == nil {
+	var role oneloginRoleNative
+	err := d.client.execRequest(&oneloginRequest{
+		method:    methodPut,
+		path:      fmt.Sprintf("%s/%v", pathRoles, state.ID.ValueInt64()),
+		body:      body,
+		respModel: &role,
+	})
+
+	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error updating role",
 			"Could not update role: "+err.Error(),
@@ -178,9 +182,8 @@ func (d *oneLoginRole) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	newState, diags := d.read(ctx, int64(*role.ID))
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	newState, diags := d.read(ctx, role.ID)
+	if diags.HasError() {
 		return
 	}
 
@@ -193,15 +196,19 @@ func (d *oneLoginRole) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 }
 
-func (d *oneLoginRole) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state oneLoginRoleModel
+func (d *oneloginRoleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var state oneloginRole
 	diags := req.State.Get(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	err := d.client.Services.RolesV1.Destroy(int32(state.ID.ValueInt64()))
+	// queryParams is inexplicably unused
+	err := d.client.execRequest(&oneloginRequest{
+		method: methodDelete,
+		path:   fmt.Sprintf("%s/%v", pathRoles, state.ID.ValueInt64()),
+	})
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting role",
@@ -211,7 +218,7 @@ func (d *oneLoginRole) Delete(ctx context.Context, req resource.DeleteRequest, r
 	}
 }
 
-func (d *oneLoginRole) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	id, err := strconv.Atoi(req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error parsing ID for import role", "Could not parse ID "+req.ID+": "+err.Error())
@@ -231,60 +238,59 @@ func (d *oneLoginRole) ImportState(ctx context.Context, req resource.ImportState
 	}
 }
 
-func (d *oneLoginRole) roleFromState(ctx context.Context, state *oneLoginRoleModel) *roles.Role {
-	var admins []int32
+func (d *oneloginRoleResource) read(ctx context.Context, id int64) (*oneloginRole, diag.Diagnostics) {
+	diags := diag.Diagnostics{}
+
+	// This function doesn't even make any sense.  Query params need to be included
+	// but it is impossible to use query params when getting role by ID.
+	var role oneloginRoleNative
+	err := d.client.execRequest(&oneloginRequest{
+		method:    methodGet,
+		path:      fmt.Sprintf("%s/%v", pathRoles, id),
+		respModel: &role,
+	})
+	if err != nil || role.ID == 0 {
+		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())
+		return nil, diags
+	}
+
+	return role.toState(ctx)
+}
+
+func (state *oneloginRole) toNative(ctx context.Context) *oneloginRoleNative {
+	admins := []int64{}
 	if !state.Admins.IsNull() {
 		state.Admins.ElementsAs(ctx, &admins, false)
 	}
 
-	var apps []int32
+	apps := []int64{}
 	if !state.Apps.IsNull() {
 		state.Apps.ElementsAs(ctx, &apps, false)
 	}
 
-	var users []int32
+	users := []int64{}
 	if !state.Users.IsNull() {
 		state.Users.ElementsAs(ctx, &users, false)
 	}
 
-	var id *int32 = nil
-	if !state.ID.IsNull() && !state.ID.IsUnknown() {
-		tmp := int32(state.ID.ValueInt64())
-		id = &tmp
-	}
-
-	return &roles.Role{
-		ID:     id,
-		Name:   state.Name.ValueStringPointer(),
+	return &oneloginRoleNative{
+		ID:     state.ID.ValueInt64(),
+		Name:   state.Name.ValueString(),
 		Admins: admins,
 		Apps:   apps,
 		Users:  users,
 	}
 }
 
-func (d *oneLoginRole) read(ctx context.Context, id int64) (*oneLoginRoleModel, diag.Diagnostics) {
+func (role *oneloginRoleNative) toState(ctx context.Context) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
-	role, err := d.client.Services.RolesV1.GetOne(int32(id))
-	if err != nil {
-		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())
-		return nil, diags
-	}
-
-	if role.ID == nil {
-		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": role not found")
-		return nil, diags
-	}
-
-	state := &oneLoginRoleModel{
-		ID:     types.Int64Value(int64(*role.ID)),
+	state := &oneloginRole{
+		ID:     types.Int64Value(int64(role.ID)),
+		Name:   types.StringValue(role.Name),
 		Admins: types.ListNull(types.Int64Type),
 		Apps:   types.ListNull(types.Int64Type),
 		Users:  types.ListNull(types.Int64Type),
-	}
-
-	if role.Name != nil {
-		state.Name = types.StringValue(*role.Name)
 	}
 
 	admins, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Admins)

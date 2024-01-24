@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -9,11 +10,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/onelogin/onelogin-go-sdk/pkg/client"
 )
 
 // Ensure ScaffoldingProvider satisfies various provider interfaces.
 var _ provider.Provider = &oneloginProvider{}
+
+type newResourceFunc func() resource.Resource
+type newDataSourceFunc func() datasource.DataSource
 
 // ScaffoldingProvider defines the provider implementation.
 type oneloginProvider struct {
@@ -21,13 +24,15 @@ type oneloginProvider struct {
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
+
+	client client
 }
 
 // ScaffoldingProviderModel describes the provider data model.
 type oneLoginProviderModel struct {
 	ClientID     types.String `tfsdk:"client_id"`
 	CLientSecret types.String `tfsdk:"client_secret"`
-	URL          types.String `tfsdk:"url"`
+	Subdomain    types.String `tfsdk:"subdomain"`
 	Region       types.String `tfsdk:"region"`
 }
 
@@ -48,8 +53,8 @@ func (p *oneloginProvider) Schema(ctx context.Context, req provider.SchemaReques
 				Required:            true,
 				Sensitive:           true,
 			},
-			"url": schema.StringAttribute{
-				MarkdownDescription: "Instance url",
+			"subdomain": schema.StringAttribute{
+				MarkdownDescription: "Instance subdomain",
 				Required:            true,
 			},
 			"region": schema.StringAttribute{
@@ -78,49 +83,43 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 		resp.Diagnostics.AddAttributeError(path.Root("client_secret"), "client_secret is required", "")
 	}
 
-	if data.URL.IsUnknown() {
+	if data.Subdomain.IsUnknown() {
 		resp.Diagnostics.AddAttributeError(path.Root("url"), "url is required", "")
-	}
-
-	region := client.USRegion
-	if !data.Region.IsUnknown() {
-		region = data.Region.ValueString()
 	}
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	client, err := client.NewClient(&client.APIClientConfig{
+	client, err := newClient(&clientConfig{
+		clientID:     data.ClientID.ValueString(),
+		clientSecret: data.CLientSecret.ValueString(),
+		subdomain:    data.Subdomain.ValueString(),
+
 		// This needs to be high because some operations are very slow,
 		// but still complete after context cancellation, which leaves
 		// the state inconsistent.
-		Timeout: 60, // seconds (assuming, not documented)
-
-		ClientID:     data.ClientID.ValueString(),
-		ClientSecret: data.CLientSecret.ValueString(),
-		Url:          data.URL.ValueString(),
-		Region:       region,
+		timeout: 60 * time.Second,
 	})
 	if err != nil {
-		resp.Diagnostics.AddError("failed to create OneLogin client", err.Error())
+		resp.Diagnostics.AddError("Unable to create client", err.Error())
 		return
 	}
 
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	p.client = *client
 }
 
 func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewOneLoginRole,
-		NewOneLoginApp,
+		NewOneLoginRoleResource(&p.client),
+		NewOneLoginAppResource(&p.client),
+		NewOneLoginUserResource(&p.client),
 	}
 }
 
 func (p *oneloginProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewOneLoginUser,
+		NewOneLoginUserDataSource(&p.client),
 	}
 }
 

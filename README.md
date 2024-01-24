@@ -5,7 +5,7 @@ This repository is a [Terraform](https://www.terraform.io) provider for OneLogin
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.20
+- [Go](https://golang.org/doc/install) >= 1.21
 
 ## Building The Provider
 
@@ -44,10 +44,18 @@ To compile the provider, run `go install`. This will build the provider and put 
 
 To generate or update documentation, run `go generate`.
 
-In order to run the full suite of Acceptance tests, run `make testacc`.
-
-*Note:* Acceptance tests create real resources, and often cost money to run.
-
+In order to run the full suite of Acceptance tests, export the environment variables below, then run `make testacc`.
 ```shell
+export CLIENT_ID='<client-id>',
+export CLIENT_SECRET='<client-secret>'
+export SUBDOMAIN='<subdomain>',
 make testacc
 ```
+
+# Notes
+- app icon_url does not work
+- can auth_method/auth_method_description be arbitrarily set or are they defined for each connector
+  - check the connector list, some have auth_method, others do not
+  - gussing that auth_method can be set if it is not in the connector list, otherwise no
+- parameter delete does not work (filed ticket with OL)
+- parameter add doesn't properly set skip_if_blank for the second parameter added in some cases (filed ticket with OL)
