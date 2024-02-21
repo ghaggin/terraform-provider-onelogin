@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -43,7 +44,7 @@ func plancheckFunc(checkPlanFunc CheckPlanFunc) plancheck.PlanCheck {
 type providerTestSuite struct {
 	suite.Suite
 
-	client         *client
+	client         *onelogin.Client
 	providerConfig string
 }
 
@@ -52,10 +53,10 @@ func TestProvider(t *testing.T) {
 	clientSecret := os.Getenv("CLIENT_SECRET")
 	subdomain := os.Getenv("SUBDOMAIN")
 
-	client, err := newClient(&clientConfig{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-		subdomain:    subdomain,
+	client, err := onelogin.NewClient(&onelogin.ClientConfig{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Subdomain:    subdomain,
 	})
 	require.NoError(t, err)
 

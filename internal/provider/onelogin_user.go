@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ghaggin/terraform-provider-onelogin/internal/util"
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	dschema "github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -21,7 +22,7 @@ var _ datasource.DataSource = &oneloginUserDataSource{}
 var _ datasource.DataSourceWithConfigure = &oneloginUserDataSource{}
 
 type oneloginUserDataSource struct {
-	client *client
+	client *onelogin.Client
 }
 
 type oneloginUserModel struct {
@@ -37,7 +38,7 @@ type oneloginNativeUserModel struct {
 
 // OneLogin User Datasource
 
-func NewOneLoginUserDataSource(client *client) newDataSourceFunc {
+func NewOneLoginUserDataSource(client *onelogin.Client) newDataSourceFunc {
 	return func() datasource.DataSource {
 		return &oneloginUserDataSource{
 			client: client,
@@ -84,13 +85,13 @@ func (d *oneloginUserDataSource) Read(ctx context.Context, req datasource.ReadRe
 	// users, err := d.client.ListUsers(&onelogin.UserQuery{Username: username})
 	var users []oneloginNativeUserModel
 
-	err := d.client.execRequest(&oneloginRequest{
-		method: methodGet,
-		path:   pathUsers,
-		queryParams: queryParams{
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method: onelogin.MethodGet,
+		Path:   onelogin.PathUsers,
+		QueryParams: onelogin.QueryParams{
 			"username": username,
 		},
-		respModel: &users,
+		RespModel: &users,
 	})
 	if err != nil || len(users) == 0 {
 		resp.Diagnostics.AddError(
@@ -118,10 +119,10 @@ func (d *oneloginUserDataSource) Read(ctx context.Context, req datasource.ReadRe
 // OneLogin User Resource
 
 type oneloginUserResource struct {
-	client *client
+	client *onelogin.Client
 }
 
-func NewOneLoginUserResource(client *client) newResourceFunc {
+func NewOneLoginUserResource(client *onelogin.Client) newResourceFunc {
 	return func() resource.Resource {
 		return &oneloginUserResource{
 			client: client,
@@ -164,11 +165,11 @@ func (r *oneloginUserResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	var userResp oneloginNativeUserModel
-	err := r.client.execRequestCtx(ctx, &oneloginRequest{
-		method:    methodPost,
-		path:      pathUsers,
-		respModel: &userResp,
-		body: &oneloginNativeUserModel{
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodPost,
+		Path:      onelogin.PathUsers,
+		RespModel: &userResp,
+		Body: &oneloginNativeUserModel{
 			Username: data.Username.ValueString(),
 		},
 	})
@@ -223,11 +224,11 @@ func (r *oneloginUserResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Update user
 	var userResp oneloginNativeUserModel
-	err := r.client.execRequestCtx(ctx, &oneloginRequest{
-		method:    methodPut,
-		path:      fmt.Sprintf("%s/%v", pathUsers, data.ID.ValueInt64()),
-		respModel: &userResp,
-		body: &oneloginNativeUserModel{
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodPut,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
+		RespModel: &userResp,
+		Body: &oneloginNativeUserModel{
 			Username: data.Username.ValueString(),
 		},
 	})
@@ -259,9 +260,9 @@ func (r *oneloginUserResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Delete user
-	err := r.client.execRequestCtx(ctx, &oneloginRequest{
-		method: methodDelete,
-		path:   fmt.Sprintf("%s/%v", pathUsers, data.ID.ValueInt64()),
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method: onelogin.MethodDelete,
+		Path:   fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -294,10 +295,10 @@ func (r *oneloginUserResource) read(ctx context.Context, state *oneloginUserMode
 
 	id := state.ID.ValueInt64()
 
-	err := r.client.execRequest(&oneloginRequest{
-		method:    methodGet,
-		path:      fmt.Sprintf("%s/%v", pathUsers, id),
-		respModel: &user,
+	err := r.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathUsers, id),
+		RespModel: &user,
 	})
 	if err != nil {
 		d.AddError(

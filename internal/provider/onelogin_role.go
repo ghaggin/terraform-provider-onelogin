@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ghaggin/terraform-provider-onelogin/internal/util"
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -20,7 +21,7 @@ var (
 	_ resource.ResourceWithImportState = &oneloginRoleResource{}
 )
 
-func NewOneLoginRoleResource(client *client) newResourceFunc {
+func NewOneLoginRoleResource(client *onelogin.Client) newResourceFunc {
 	return func() resource.Resource {
 		return &oneloginRoleResource{
 			client: client,
@@ -29,7 +30,7 @@ func NewOneLoginRoleResource(client *client) newResourceFunc {
 }
 
 type oneloginRoleResource struct {
-	client *client
+	client *onelogin.Client
 }
 
 type oneloginRole struct {
@@ -104,11 +105,11 @@ func (d *oneloginRoleResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	var role oneloginRoleNative
-	err := d.client.execRequest(&oneloginRequest{
-		method:    methodPost,
-		path:      pathRoles,
-		body:      state.toNative(ctx),
-		respModel: &role,
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodPost,
+		Path:      onelogin.PathRoles,
+		Body:      state.toNative(ctx),
+		RespModel: &role,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -167,11 +168,11 @@ func (d *oneloginRoleResource) Update(ctx context.Context, req resource.UpdateRe
 	body.ID = 0 // zero out id to omit from the json body
 
 	var role oneloginRoleNative
-	err := d.client.execRequest(&oneloginRequest{
-		method:    methodPut,
-		path:      fmt.Sprintf("%s/%v", pathRoles, state.ID.ValueInt64()),
-		body:      body,
-		respModel: &role,
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodPut,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
+		Body:      body,
+		RespModel: &role,
 	})
 
 	if err != nil {
@@ -205,9 +206,9 @@ func (d *oneloginRoleResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// queryParams is inexplicably unused
-	err := d.client.execRequest(&oneloginRequest{
-		method: methodDelete,
-		path:   fmt.Sprintf("%s/%v", pathRoles, state.ID.ValueInt64()),
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method: onelogin.MethodDelete,
+		Path:   fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -244,10 +245,10 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64) (*oneloginRol
 	// This function doesn't even make any sense.  Query params need to be included
 	// but it is impossible to use query params when getting role by ID.
 	var role oneloginRoleNative
-	err := d.client.execRequest(&oneloginRequest{
-		method:    methodGet,
-		path:      fmt.Sprintf("%s/%v", pathRoles, id),
-		respModel: &role,
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, id),
+		RespModel: &role,
 	})
 	if err != nil || role.ID == 0 {
 		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())

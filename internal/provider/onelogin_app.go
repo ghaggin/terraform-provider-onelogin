@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -26,7 +27,7 @@ var (
 )
 
 type oneloginAppResource struct {
-	client *client
+	client *onelogin.Client
 }
 
 type oneloginApp struct {
@@ -179,7 +180,7 @@ func oneloginAppSSOTypes() map[string]attr.Type {
 	}
 }
 
-func NewOneLoginAppResource(client *client) newResourceFunc {
+func NewOneLoginAppResource(client *onelogin.Client) newResourceFunc {
 	return func() resource.Resource {
 		return &oneloginAppResource{client}
 	}
@@ -432,11 +433,11 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 
 	app := state.toNativApp(ctx)
 	var appResp oneloginNativeApp
-	err := d.client.execRequest(&oneloginRequest{
-		method:    methodPost,
-		path:      pathApps,
-		body:      app,
-		respModel: &appResp,
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodPost,
+		Path:      onelogin.PathApps,
+		Body:      app,
+		RespModel: &appResp,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -478,11 +479,11 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 	}
 
 	var appResp oneloginNativeApp
-	err := d.client.execRequest(&oneloginRequest{
-		method:    methodPut,
-		path:      fmt.Sprintf("%s/%v", pathApps, state.ID.ValueInt64()),
-		body:      state.toNativApp(ctx),
-		respModel: &appResp,
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodPut,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
+		Body:      state.toNativApp(ctx),
+		RespModel: &appResp,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -512,9 +513,9 @@ func (d *oneloginAppResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	err := d.client.execRequest(&oneloginRequest{
-		method: methodDelete,
-		path:   fmt.Sprintf("%s/%v", pathApps, state.ID.ValueInt64()),
+	err := d.client.ExecRequest(&onelogin.Request{
+		Method: onelogin.MethodDelete,
+		Path:   fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -547,10 +548,10 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 
 	id := state.ID.ValueInt64()
 
-	err := r.client.execRequest(&oneloginRequest{
-		method:    methodGet,
-		path:      fmt.Sprintf("%s/%v", pathApps, id),
-		respModel: &app,
+	err := r.client.ExecRequest(&onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, id),
+		RespModel: &app,
 	})
 	if err != nil {
 		d.AddError(

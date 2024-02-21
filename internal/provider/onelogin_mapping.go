@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,7 +22,7 @@ var (
 	_ resource.ResourceWithImportState = &oneloginMappingResource{}
 )
 
-func NewOneLoginMappingResource(client *client) newResourceFunc {
+func NewOneLoginMappingResource(client *onelogin.Client) newResourceFunc {
 	return func() resource.Resource {
 		return &oneloginMappingResource{
 			client: client,
@@ -30,7 +31,7 @@ func NewOneLoginMappingResource(client *client) newResourceFunc {
 }
 
 type oneloginMappingResource struct {
-	client *client
+	client *onelogin.Client
 }
 
 type oneloginMapping struct {
@@ -185,11 +186,11 @@ func (d *oneloginMappingResource) Create(ctx context.Context, req resource.Creat
 	native.Position = nil
 
 	var mapping oneloginNativeMapping
-	err := d.client.execRequestCtx(ctx, &oneloginRequest{
-		method:    methodPost,
-		path:      pathMappings,
-		body:      native,
-		respModel: &mapping,
+	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodPost,
+		Path:      onelogin.PathMappings,
+		Body:      native,
+		RespModel: &mapping,
 	})
 	if err != nil || mapping.ID == 0 {
 		resp.Diagnostics.AddError(
@@ -229,11 +230,11 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 	mappingBody.Position = nil
 
 	var mappingResp oneloginNativeMapping
-	err := d.client.execRequestCtx(ctx, &oneloginRequest{
-		method:    methodPut,
-		path:      fmt.Sprintf("%s/%v", pathMappings, id),
-		body:      mappingBody,
-		respModel: &mappingResp,
+	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodPut,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
+		Body:      mappingBody,
+		RespModel: &mappingResp,
 	})
 	if err != nil || mappingResp.ID != id {
 		resp.Diagnostics.AddError(
@@ -255,9 +256,9 @@ func (d *oneloginMappingResource) Delete(ctx context.Context, req resource.Delet
 	}
 
 	id := state.ID.ValueInt64()
-	err := d.client.execRequestCtx(ctx, &oneloginRequest{
-		method: methodDelete,
-		path:   fmt.Sprintf("%s/%v", pathMappings, id),
+	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method: onelogin.MethodDelete,
+		Path:   fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -289,10 +290,10 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 	var mapping oneloginNativeMapping
 	id := state.ID.ValueInt64()
 
-	err := d.client.execRequestCtx(ctx, &oneloginRequest{
-		method:    methodGet,
-		path:      fmt.Sprintf("%s/%v", pathMappings, id),
-		respModel: &mapping,
+	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
+		RespModel: &mapping,
 	})
 
 	if err != nil {

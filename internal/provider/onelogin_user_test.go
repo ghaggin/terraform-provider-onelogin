@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
-
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
@@ -22,13 +22,13 @@ func (s *providerTestSuite) TestAccDatasourceUser() {
 					var respModel struct {
 						ID int64 `json:"id"`
 					}
-					err := s.client.execRequest(&oneloginRequest{
-						method: methodPost,
-						path:   pathUsers,
-						body: &oneloginNativeUserModel{
+					err := s.client.ExecRequest(&onelogin.Request{
+						Method: onelogin.MethodPost,
+						Path:   onelogin.PathUsers,
+						Body: &oneloginNativeUserModel{
 							Username: username,
 						},
-						respModel: &respModel,
+						RespModel: &respModel,
 					})
 					s.Require().NoError(err)
 					s.Require().NotZero(respModel.ID)
@@ -56,9 +56,9 @@ func (s *providerTestSuite) TestAccDatasourceUser() {
 				// Clean up the user created in the PreConfig step in the previous TestStep
 				// Config should be the provider config and should not add any resources.
 				PreConfig: func() {
-					err := s.client.execRequest(&oneloginRequest{
-						method: methodDelete,
-						path:   fmt.Sprintf("%v/%v", pathUsers, id),
+					err := s.client.ExecRequest(&onelogin.Request{
+						Method: onelogin.MethodDelete,
+						Path:   fmt.Sprintf("%v/%v", onelogin.PathUsers, id),
 					})
 					s.NoError(err)
 				},

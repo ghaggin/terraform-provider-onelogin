@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -25,7 +26,7 @@ type oneloginProvider struct {
 	// testing.
 	version string
 
-	client client
+	client onelogin.Client
 }
 
 // ScaffoldingProviderModel describes the provider data model.
@@ -91,15 +92,15 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	client, err := newClient(&clientConfig{
-		clientID:     data.ClientID.ValueString(),
-		clientSecret: data.CLientSecret.ValueString(),
-		subdomain:    data.Subdomain.ValueString(),
+	client, err := onelogin.NewClient(&onelogin.ClientConfig{
+		ClientID:     data.ClientID.ValueString(),
+		ClientSecret: data.CLientSecret.ValueString(),
+		Subdomain:    data.Subdomain.ValueString(),
 
 		// This needs to be high because some operations are very slow,
 		// but still complete after context cancellation, which leaves
 		// the state inconsistent.
-		timeout: 60 * time.Second,
+		Timeout: 60 * time.Second,
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create client", err.Error())

@@ -1,4 +1,4 @@
-package provider
+package onelogin
 
 import (
 	"bytes"
@@ -12,21 +12,21 @@ import (
 )
 
 const (
-	defaultTimeout = 10 * time.Second
+	DefaultTimeout = 10 * time.Second
 )
 
-type client struct {
-	config         *clientConfig
+type Client struct {
+	config         *ClientConfig
 	httpClient     *http.Client
 	authToken      string
 	authExpiration time.Time
 }
 
-type clientConfig struct {
-	clientID     string
-	clientSecret string
-	subdomain    string
-	timeout      time.Duration
+type ClientConfig struct {
+	ClientID     string
+	ClientSecret string
+	Subdomain    string
+	Timeout      time.Duration
 }
 
 type authResponse struct {
@@ -41,33 +41,33 @@ type authResponse struct {
 type method string
 
 const (
-	methodGet    method = http.MethodGet
-	methodPost   method = http.MethodPost
-	methodPut    method = http.MethodPut
-	methodDelete method = http.MethodDelete
+	MethodGet    method = http.MethodGet
+	MethodPost   method = http.MethodPost
+	MethodPut    method = http.MethodPut
+	MethodDelete method = http.MethodDelete
 
-	pathApps     = "/api/2/apps"
-	pathRoles    = "/api/2/roles"
-	pathUsers    = "/api/2/users"
-	pathMappings = "/api/2/mappings"
+	PathApps     = "/api/2/apps"
+	PathRoles    = "/api/2/roles"
+	PathUsers    = "/api/2/users"
+	PathMappings = "/api/2/mappings"
 )
 
-type oneloginRequest struct {
-	method      method
-	path        string
-	queryParams queryParamInterface
-	body        interface{} // error returned if this can't be marshalled to json
-	respModel   interface{} // error returned if this can't be unmarshalled from json
+type Request struct {
+	Method      method
+	Path        string
+	QueryParams QueryParamInterface
+	Body        interface{} // error returned if this can't be marshalled to json
+	RespModel   interface{} // error returned if this can't be unmarshalled from json
 }
 
-type queryParamInterface interface {
+type QueryParamInterface interface {
 	// to query string returns a query string from the queryParams instance
 	toQueryString() string
 }
 
-type queryParams map[string]interface{}
+type QueryParams map[string]interface{}
 
-func (q queryParams) toQueryString() string {
+func (q QueryParams) toQueryString() string {
 	if len(q) == 0 {
 		return ""
 	}
@@ -80,27 +80,27 @@ func (q queryParams) toQueryString() string {
 	return "?" + values.Encode()
 }
 
-func newClient(config *clientConfig) (*client, error) {
-	if config.timeout == 0 {
-		config.timeout = defaultTimeout
+func NewClient(config *ClientConfig) (*Client, error) {
+	if config.Timeout == 0 {
+		config.Timeout = DefaultTimeout
 	}
 
-	c := &client{
+	c := &Client{
 		config: config,
 		httpClient: &http.Client{
-			Timeout: config.timeout,
+			Timeout: config.Timeout,
 		},
 	}
 
 	// Attempt to authenticate
-	ctx, cancel := context.WithTimeout(context.Background(), config.timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
 	_, err := c.getToken(ctx)
 
 	return c, err
 }
 
-func (c *client) getToken(ctx context.Context) (string, error) {
+func (c *Client) getToken(ctx context.Context) (string, error) {
 	if time.Now().After(c.authExpiration) {
 		return c.getTokenForce(ctx)
 	}
@@ -108,7 +108,7 @@ func (c *client) getToken(ctx context.Context) (string, error) {
 	return c.authToken, nil
 }
 
-func (c *client) getTokenForce(ctx context.Context) (string, error) {
+func (c *Client) getTokenForce(ctx context.Context) (string, error) {
 	resp, err := c.authRequest(ctx)
 	if err != nil {
 		c.authToken = ""
@@ -121,8 +121,8 @@ func (c *client) getTokenForce(ctx context.Context) (string, error) {
 	return c.authToken, err
 }
 
-func (c *client) authRequest(ctx context.Context) (*authResponse, error) {
-	authURL := fmt.Sprintf("https://%s.onelogin.com/auth/oauth2/v2/token", c.config.subdomain)
+func (c *Client) authRequest(ctx context.Context) (*authResponse, error) {
+	authURL := fmt.Sprintf("https://%s.onelogin.com/auth/oauth2/v2/token", c.config.Subdomain)
 
 	// Convert payload to JSON
 	jsonBody, _ := json.Marshal(map[string]string{
@@ -133,7 +133,7 @@ func (c *client) authRequest(ctx context.Context) (*authResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.SetBasicAuth(c.config.clientID, c.config.clientSecret)
+	req.SetBasicAuth(c.config.ClientID, c.config.ClientSecret)
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -155,30 +155,30 @@ func (c *client) authRequest(ctx context.Context) (*authResponse, error) {
 	return &authResponse, err
 }
 
-func (c *client) execRequest(req *oneloginRequest) error {
-	return c.execRequestCtx(context.Background(), req)
+func (c *Client) ExecRequest(req *Request) error {
+	return c.ExecRequestCtx(context.Background(), req)
 }
 
-func (c *client) execRequestCtx(ctx context.Context, req *oneloginRequest) error {
+func (c *Client) ExecRequestCtx(ctx context.Context, req *Request) error {
 	// add configured timeout to context
-	ctx, cancel := context.WithTimeout(ctx, c.config.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 
-	url := fmt.Sprintf("https://%s.onelogin.com%s", c.config.subdomain, req.path)
-	if req.queryParams != nil {
-		url += req.queryParams.toQueryString()
+	url := fmt.Sprintf("https://%s.onelogin.com%s", c.config.Subdomain, req.Path)
+	if req.QueryParams != nil {
+		url += req.QueryParams.toQueryString()
 	}
 
 	var body io.Reader
-	if req.body != nil {
-		bodyBytes, err := json.Marshal(req.body)
+	if req.Body != nil {
+		bodyBytes, err := json.Marshal(req.Body)
 		if err != nil {
 			return err
 		}
 		body = bytes.NewReader(bodyBytes)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, string(req.method), url, body)
+	httpReq, err := http.NewRequestWithContext(ctx, string(req.Method), url, body)
 	if err != nil {
 		return err
 	}
@@ -206,8 +206,8 @@ func (c *client) execRequestCtx(ctx context.Context, req *oneloginRequest) error
 		return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))
 	}
 
-	if req.respModel != nil {
-		return json.NewDecoder(resp.Body).Decode(req.respModel)
+	if req.RespModel != nil {
+		return json.NewDecoder(resp.Body).Decode(req.RespModel)
 	}
 
 	return nil

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	fres "github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 func (s *providerTestSuite) TestAccResourceAppMisc() {
-	var appi interface{} = NewOneLoginAppResource(&client{})
+	var appi interface{} = NewOneLoginAppResource(&onelogin.Client{})
 	s.NotNil(appi)
 
 	app := oneloginAppResource{}

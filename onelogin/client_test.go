@@ -1,4 +1,4 @@
-package provider
+package onelogin
 
 import (
 	"context"
@@ -36,11 +36,11 @@ func (s *clientTestSuite) Test_getToken() {
 	testToken := "test_token"
 	testExpiration := time.Now().Add(time.Hour)
 
-	c := &client{
-		config: &clientConfig{
-			clientID:     "",
-			clientSecret: "",
-			subdomain:    "",
+	c := &Client{
+		config: &ClientConfig{
+			ClientID:     "",
+			ClientSecret: "",
+			Subdomain:    "",
 		},
 		authToken:      testToken,
 		authExpiration: testExpiration,
@@ -59,9 +59,9 @@ func (s *clientTestSuite) Test_getToken() {
 	s.Equal(token, c.authToken)
 	s.Equal(time.Time{}, c.authExpiration)
 
-	c.config.clientID = s.clientID
-	c.config.clientSecret = s.clientSecret
-	c.config.subdomain = s.subdomain
+	c.config.ClientID = s.clientID
+	c.config.ClientSecret = s.clientSecret
+	c.config.Subdomain = s.subdomain
 
 	token, err = c.getToken(s.ctx)
 	s.Require().NoError(err)
