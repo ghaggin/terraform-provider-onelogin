@@ -44,22 +44,6 @@ type oneloginMapping struct {
 	Actions    types.List   `tfsdk:"actions"`
 }
 
-type oneloginNativeMapping struct {
-	ID         int64                            `json:"id,omitempty"`
-	Name       string                           `json:"name"`
-	Match      string                           `json:"match"`
-	Enabled    bool                             `json:"enabled"`
-	Position   *int64                           `json:"position"`
-	Conditions []oneloginNativeMappingCondition `json:"conditions"`
-	Actions    []oneloginNativeMappingAction    `json:"actions"`
-}
-
-type oneloginNativeMappingCondition struct {
-	Source   string `json:"source"`
-	Operator string `json:"operator"`
-	Value    string `json:"value"`
-}
-
 type oneloginMappingCondition struct {
 	Source   types.String `tfsdk:"source"`
 	Operator types.String `tfsdk:"operator"`
@@ -72,11 +56,6 @@ func oneloginMappingConditionTypes() map[string]attr.Type {
 		"operator": types.StringType,
 		"value":    types.StringType,
 	}
-}
-
-type oneloginNativeMappingAction struct {
-	Action string   `json:"action"`
-	Value  []string `json:"value"`
 }
 
 type oneloginMappingAction struct {
@@ -185,7 +164,7 @@ func (d *oneloginMappingResource) Create(ctx context.Context, req resource.Creat
 	// TODO: Implement the position logic
 	native.Position = nil
 
-	var mapping oneloginNativeMapping
+	var mapping onelogin.Mapping
 	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathMappings,
@@ -229,7 +208,7 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 	mappingBody.ID = 0
 	mappingBody.Position = nil
 
-	var mappingResp oneloginNativeMapping
+	var mappingResp onelogin.Mapping
 	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
@@ -287,7 +266,7 @@ func (d *oneloginMappingResource) ImportState(ctx context.Context, req resource.
 }
 
 func (d *oneloginMappingResource) readToState(ctx context.Context, state *oneloginMapping, respState *tfsdk.State, diags *diag.Diagnostics) {
-	var mapping oneloginNativeMapping
+	var mapping onelogin.Mapping
 	id := state.ID.ValueInt64()
 
 	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
@@ -304,7 +283,7 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 		return
 	}
 
-	newState, newDiags := mapping.toState(ctx)
+	newState, newDiags := mappingToState(ctx, &mapping)
 	if newDiags.HasError() {
 		diags.Append(newDiags...)
 		return
@@ -315,8 +294,8 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 	diags.Append(newDiags...)
 }
 
-func (state *oneloginMapping) toNativeMapping(ctx context.Context) *oneloginNativeMapping {
-	native := &oneloginNativeMapping{
+func (state *oneloginMapping) toNativeMapping(ctx context.Context) *onelogin.Mapping {
+	native := &onelogin.Mapping{
 		ID:       state.ID.ValueInt64(),
 		Name:     state.Name.ValueString(),
 		Match:    state.Match.ValueString(),
@@ -327,7 +306,7 @@ func (state *oneloginMapping) toNativeMapping(ctx context.Context) *oneloginNati
 	conditions := []oneloginMappingCondition{}
 	state.Conditions.ElementsAs(ctx, &conditions, false)
 	for _, condition := range conditions {
-		native.Conditions = append(native.Conditions, oneloginNativeMappingCondition{
+		native.Conditions = append(native.Conditions, onelogin.MappingCondition{
 			Source:   condition.Source.ValueString(),
 			Operator: condition.Operator.ValueString(),
 			Value:    condition.Value.ValueString(),
@@ -339,7 +318,7 @@ func (state *oneloginMapping) toNativeMapping(ctx context.Context) *oneloginNati
 	for _, action := range actions {
 		values := []string{}
 		action.Value.ElementsAs(ctx, &values, false)
-		native.Actions = append(native.Actions, oneloginNativeMappingAction{
+		native.Actions = append(native.Actions, onelogin.MappingAction{
 			Action: action.Action.ValueString(),
 			Value:  values,
 		})
@@ -348,7 +327,7 @@ func (state *oneloginMapping) toNativeMapping(ctx context.Context) *oneloginNati
 	return native
 }
 
-func (mapping *oneloginNativeMapping) toState(ctx context.Context) (*oneloginMapping, diag.Diagnostics) {
+func mappingToState(ctx context.Context, mapping *onelogin.Mapping) (*oneloginMapping, diag.Diagnostics) {
 	state := &oneloginMapping{
 		ID:      types.Int64Value(mapping.ID),
 		Name:    types.StringValue(mapping.Name),

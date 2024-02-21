@@ -25,7 +25,7 @@ func (s *providerTestSuite) TestAccDatasourceUser() {
 					err := s.client.ExecRequest(&onelogin.Request{
 						Method: onelogin.MethodPost,
 						Path:   onelogin.PathUsers,
-						Body: &oneloginNativeUserModel{
+						Body: &onelogin.User{
 							Username: username,
 						},
 						RespModel: &respModel,

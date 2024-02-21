@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
@@ -19,19 +20,19 @@ func (s *providerTestSuite) Test_mappingToState() {
 	actionValue1 := "test_value_1"
 	actionValue2 := "test_value_2"
 
-	nativeMapping := &oneloginNativeMapping{
+	nativeMapping := &onelogin.Mapping{
 		ID:       id,
 		Name:     name,
 		Match:    match,
 		Position: &position,
-		Conditions: []oneloginNativeMappingCondition{
+		Conditions: []onelogin.MappingCondition{
 			{
 				Source:   source,
 				Operator: operator,
 				Value:    value,
 			},
 		},
-		Actions: []oneloginNativeMappingAction{
+		Actions: []onelogin.MappingAction{
 			{
 				Action: action,
 				Value:  []string{actionValue1, actionValue2},
@@ -41,7 +42,7 @@ func (s *providerTestSuite) Test_mappingToState() {
 
 	ctx := context.Background()
 
-	state, diags := nativeMapping.toState(ctx)
+	state, diags := mappingToState(ctx, nativeMapping)
 	s.Require().False(diags.HasError(), diags.Errors())
 
 	s.Equal(id, state.ID.ValueInt64())

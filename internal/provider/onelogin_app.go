@@ -57,38 +57,6 @@ type oneloginApp struct {
 	Parameters types.Map `tfsdk:"parameters"`
 }
 
-type oneloginNativeApp struct {
-	ID                    int64  `json:"id"`
-	Name                  string `json:"name"`
-	ConnectorID           int64  `json:"connector_id"`
-	IconURL               string `json:"icon_url"`
-	Visible               bool   `json:"visible"`
-	AuthMethod            int64  `json:"auth_method"`
-	AuthMethodDescription string `json:"auth_method_description"`
-	AllowAssumedSignin    bool   `json:"allow_assumed_signin"`
-	CreatedAt             string `json:"created_at"` // timestamp string
-	UpdatedAt             string `json:"updated_at"` // timestmp string
-
-	// Can be null
-	Description *string `json:"description,omitempty"`
-	TabID       *int64  `json:"tab_id,omitempty"`
-	BrandID     *int64  `json:"brand_id,omitempty"`
-	Notes       *string `json:"notes,omitempty"`
-	PolicyID    *int64  `json:"policy_id,omitempty"`
-
-	Provisioning *oneloginNativeAppProvisioning `json:"provisioning,omitempty"`
-	SSO          *oneloginNativeAppSSO          `json:"sso,omitempty"`
-
-	// Different for every connector
-	Configuration map[string]interface{} `json:"configuration,omitempty"`
-
-	Parameters map[string]oneloginNativeAppParameter `json:"parameters,omitempty"`
-}
-
-type oneloginNativeAppProvisioning struct {
-	Enabled bool `json:"enabled"`
-}
-
 type oneloginAppParameter struct {
 	ID                      types.Int64  `tfsdk:"id"`
 	Label                   types.String `tfsdk:"label"`
@@ -101,21 +69,6 @@ type oneloginAppParameter struct {
 	AttributesTransformations types.String `tfsdk:"attributes_transformations"`
 	Values                    types.String `tfsdk:"values"`
 	IncludeInSamlAssertion    types.Bool   `tfsdk:"include_in_saml_assertion"`
-}
-
-type oneloginNativeAppParameter struct {
-	ID                      int64  `json:"id,omitempty"`
-	Label                   string `json:"label,omitempty"`
-	ProvisionedEntitlements bool   `json:"provisioned_entitlements,omitempty"`
-	SkipIfBlank             bool   `json:"skip_if_blank,omitempty"`
-
-	// can be nil
-	DefaultValues             *string `json:"default_values,omitempty"`
-	UserAttributeMappings     *string `json:"user_attribute_mappings,omitempty"`
-	UserAttributeMacros       *string `json:"user_attribute_macros,omitempty"`
-	AttributesTransformations *string `json:"attributes_transformations,omitempty"`
-	Values                    *string `json:"values,omitempty"`
-	IncludeInSAMLAssertion    *bool   `json:"include_in_saml_assertion,omitempty"`
 }
 
 func oneloginAppParameterTypes() map[string]attr.Type {
@@ -145,23 +98,6 @@ type oneloginAppSSO struct {
 	CertificateID    types.Int64  `tfsdk:"certificate_id"`
 	CertificateValue types.String `tfsdk:"certificate_value"`
 	CertificateName  types.String `tfsdk:"certificate_name"`
-}
-
-type oneloginNativeAppSSO struct {
-	ClientID      *string                      `json:"client_id,omitempty"`
-	ClientSecret  *string                      `json:"client_secret,omitempty"`
-	MetadataURL   *string                      `json:"metadata_url,omitempty"`
-	ACSURL        *string                      `json:"acs_url,omitempty"`
-	SLSURL        *string                      `json:"sls_url,omitempty"`
-	Issuer        *string                      `json:"issuer,omitempty"`
-	WSFED_SSO_URL *string                      `json:"wsfed_sso_url,omitempty"`
-	Certificate   oneloginNativeAppCertificate `json:"certificate,omitempty"`
-}
-
-type oneloginNativeAppCertificate struct {
-	CertificateID    *int64  `json:"certificate_id,omitempty"`
-	CertificateValue *string `json:"certificate_value,omitempty"`
-	CertificateName  *string `json:"certificate_name,omitempty"`
 }
 
 // can probably accomplish the same with oneloginAppSSO and reflection
@@ -432,7 +368,7 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	app := state.toNativApp(ctx)
-	var appResp oneloginNativeApp
+	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathApps,
@@ -447,7 +383,7 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	newState, diags := appResp.toState(ctx)
+	newState, diags := appToState(ctx, &appResp)
 	if diags.HasError() {
 		return
 	}
@@ -478,7 +414,7 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	var appResp oneloginNativeApp
+	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
@@ -493,7 +429,7 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
-	newState, diags := appResp.toState(ctx)
+	newState, diags := appToState(ctx, &appResp)
 	if diags.HasError() {
 		return
 	}
@@ -544,7 +480,7 @@ func (d *oneloginAppResource) ImportState(ctx context.Context, req resource.Impo
 }
 
 func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, respState *tfsdk.State, d *diag.Diagnostics) {
-	var app oneloginNativeApp
+	var app onelogin.Application
 
 	id := state.ID.ValueInt64()
 
@@ -561,7 +497,7 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 		return
 	}
 
-	newState, diags := app.toState(ctx)
+	newState, diags := appToState(ctx, &app)
 	if diags.HasError() {
 		return
 	}
@@ -571,8 +507,8 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 	d.Append(diags...)
 }
 
-func (state *oneloginApp) toNativApp(ctx context.Context) *oneloginNativeApp {
-	app := &oneloginNativeApp{
+func (state *oneloginApp) toNativApp(ctx context.Context) *onelogin.Application {
+	app := &onelogin.Application{
 		ID:                    state.ID.ValueInt64(),
 		Name:                  state.Name.ValueString(),
 		ConnectorID:           state.ConnectorID.ValueInt64(),
@@ -591,13 +527,13 @@ func (state *oneloginApp) toNativApp(ctx context.Context) *oneloginNativeApp {
 	}
 
 	if !state.ProvisioningEnabled.IsUnknown() && !state.ProvisioningEnabled.IsNull() {
-		app.Provisioning = &oneloginNativeAppProvisioning{
+		app.Provisioning = &onelogin.ApplicationProvisioning{
 			Enabled: state.ProvisioningEnabled.ValueBool(),
 		}
 	}
 
 	if !state.SSO.IsUnknown() && !state.SSO.IsNull() {
-		app.SSO = &oneloginNativeAppSSO{}
+		app.SSO = &onelogin.ApplicationSSO{}
 		for k, v := range state.SSO.Attributes() {
 			switch k {
 			case "client_id":
@@ -625,14 +561,14 @@ func (state *oneloginApp) toNativApp(ctx context.Context) *oneloginNativeApp {
 	}
 
 	if !state.Parameters.IsNull() && !state.Parameters.IsUnknown() {
-		app.Parameters = map[string]oneloginNativeAppParameter{}
+		app.Parameters = map[string]onelogin.ApplicationParameter{}
 		params := map[string]oneloginAppParameter{}
 		diags := state.Parameters.ElementsAs(ctx, &params, false)
 		if diags.HasError() {
 			panic(diags.Errors())
 		}
 		for k, v := range params {
-			app.Parameters[k] = oneloginNativeAppParameter{
+			app.Parameters[k] = onelogin.ApplicationParameter{
 				ID:                        v.ID.ValueInt64(),
 				Label:                     v.Label.ValueString(),
 				ProvisionedEntitlements:   v.ProvisionedEntitlements.ValueBool(),
@@ -650,7 +586,7 @@ func (state *oneloginApp) toNativApp(ctx context.Context) *oneloginNativeApp {
 	return app
 }
 
-func (app *oneloginNativeApp) toState(ctx context.Context) (*oneloginApp, diag.Diagnostics) {
+func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, diag.Diagnostics) {
 	state := &oneloginApp{
 		ID:                    types.Int64Value(app.ID),
 		Name:                  types.StringValue(app.Name),

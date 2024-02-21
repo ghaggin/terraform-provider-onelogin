@@ -45,15 +45,6 @@ type oneloginRole struct {
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
-type oneloginRoleNative struct {
-	ID   int64  `json:"id,omitempty"`
-	Name string `json:"name"`
-
-	Admins []int64 `json:"admins,omitempty"`
-	Apps   []int64 `json:"apps,omitempty"`
-	Users  []int64 `json:"users,omitempty"`
-}
-
 func (d *oneloginRoleResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_role"
 }
@@ -104,7 +95,7 @@ func (d *oneloginRoleResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	var role oneloginRoleNative
+	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathRoles,
@@ -167,7 +158,7 @@ func (d *oneloginRoleResource) Update(ctx context.Context, req resource.UpdateRe
 	body := state.toNative(ctx)
 	body.ID = 0 // zero out id to omit from the json body
 
-	var role oneloginRoleNative
+	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
@@ -244,7 +235,7 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64) (*oneloginRol
 
 	// This function doesn't even make any sense.  Query params need to be included
 	// but it is impossible to use query params when getting role by ID.
-	var role oneloginRoleNative
+	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, id),
@@ -255,10 +246,10 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64) (*oneloginRol
 		return nil, diags
 	}
 
-	return role.toState(ctx)
+	return roleToState(ctx, &role)
 }
 
-func (state *oneloginRole) toNative(ctx context.Context) *oneloginRoleNative {
+func (state *oneloginRole) toNative(ctx context.Context) *onelogin.Role {
 	admins := []int64{}
 	if !state.Admins.IsNull() {
 		state.Admins.ElementsAs(ctx, &admins, false)
@@ -274,7 +265,7 @@ func (state *oneloginRole) toNative(ctx context.Context) *oneloginRoleNative {
 		state.Users.ElementsAs(ctx, &users, false)
 	}
 
-	return &oneloginRoleNative{
+	return &onelogin.Role{
 		ID:     state.ID.ValueInt64(),
 		Name:   state.Name.ValueString(),
 		Admins: admins,
@@ -283,7 +274,7 @@ func (state *oneloginRole) toNative(ctx context.Context) *oneloginRoleNative {
 	}
 }
 
-func (role *oneloginRoleNative) toState(ctx context.Context) (*oneloginRole, diag.Diagnostics) {
+func roleToState(ctx context.Context, role *onelogin.Role) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	state := &oneloginRole{

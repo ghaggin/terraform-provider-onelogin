@@ -31,11 +31,6 @@ type oneloginUserModel struct {
 	LastUpdated types.String `tfsdk:"last_updated"`
 }
 
-type oneloginNativeUserModel struct {
-	ID       int64  `json:"id,omitempty"`
-	Username string `json:"username,omitempty"`
-}
-
 // OneLogin User Datasource
 
 func NewOneLoginUserDataSource(client *onelogin.Client) newDataSourceFunc {
@@ -83,7 +78,7 @@ func (d *oneloginUserDataSource) Read(ctx context.Context, req datasource.ReadRe
 	// Query OneLogin API for user
 	username := data.Username.ValueString()
 	// users, err := d.client.ListUsers(&onelogin.UserQuery{Username: username})
-	var users []oneloginNativeUserModel
+	var users []onelogin.User
 
 	err := d.client.ExecRequest(&onelogin.Request{
 		Method: onelogin.MethodGet,
@@ -164,12 +159,12 @@ func (r *oneloginUserResource) Create(ctx context.Context, req resource.CreateRe
 		return
 	}
 
-	var userResp oneloginNativeUserModel
+	var userResp onelogin.User
 	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathUsers,
 		RespModel: &userResp,
-		Body: &oneloginNativeUserModel{
+		Body: &onelogin.User{
 			Username: data.Username.ValueString(),
 		},
 	})
@@ -223,12 +218,12 @@ func (r *oneloginUserResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	// Update user
-	var userResp oneloginNativeUserModel
+	var userResp onelogin.User
 	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
 		RespModel: &userResp,
-		Body: &oneloginNativeUserModel{
+		Body: &onelogin.User{
 			Username: data.Username.ValueString(),
 		},
 	})
@@ -291,7 +286,7 @@ func (r *oneloginUserResource) ImportState(ctx context.Context, req resource.Imp
 }
 
 func (r *oneloginUserResource) read(ctx context.Context, state *oneloginUserModel, respState *tfsdk.State, d *diag.Diagnostics) {
-	var user oneloginNativeUserModel
+	var user onelogin.User
 
 	id := state.ID.ValueInt64()
 

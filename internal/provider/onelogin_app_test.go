@@ -248,7 +248,7 @@ func (s *providerTestSuite) Test_appToState() {
 	CertificateValue := "abcd"
 	CertificateName := "test"
 
-	app := &oneloginNativeApp{
+	app := &onelogin.Application{
 		ID:                    1,
 		Name:                  "test",
 		ConnectorID:           2,
@@ -260,7 +260,7 @@ func (s *providerTestSuite) Test_appToState() {
 		UpdatedAt:             "2020-01-01T00:00:00.000Z",
 		IconURL:               "https://example.com",
 
-		SSO: &oneloginNativeAppSSO{
+		SSO: &onelogin.ApplicationSSO{
 			ClientID:      &ClientID,
 			ClientSecret:  &ClientSecret,
 			MetadataURL:   &MetadataURL,
@@ -268,14 +268,14 @@ func (s *providerTestSuite) Test_appToState() {
 			SLSURL:        &SLSURL,
 			Issuer:        &Issuer,
 			WSFED_SSO_URL: &WSFED_SSO_URL,
-			Certificate: oneloginNativeAppCertificate{
+			Certificate: onelogin.ApplicationCertificate{
 				CertificateID:    &CertificateID,
 				CertificateValue: &CertificateValue,
 				CertificateName:  &CertificateName,
 			},
 		},
 
-		Parameters: map[string]oneloginNativeAppParameter{
+		Parameters: map[string]onelogin.ApplicationParameter{
 			"test": {
 				ID:                      1,
 				Label:                   "test_label",
@@ -291,7 +291,7 @@ func (s *providerTestSuite) Test_appToState() {
 		},
 	}
 
-	state, diags := app.toState(context.Background())
+	state, diags := appToState(context.Background(), app)
 	if diags.HasError() {
 		s.T().Fatalf("unexpected error: %v", diags.Errors())
 	}
