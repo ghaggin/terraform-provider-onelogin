@@ -114,6 +114,7 @@ func (p *oneloginProvider) Resources(ctx context.Context) []func() resource.Reso
 		NewOneLoginRoleResource(&p.client),
 		NewOneLoginAppResource(&p.client),
 		NewOneLoginUserResource(&p.client),
+		NewOneLoginMappingResource(&p.client),
 	}
 }
 

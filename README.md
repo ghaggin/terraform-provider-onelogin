@@ -1,6 +1,6 @@
 # OneLogin Terraform Provider
 
-This repository is a [Terraform](https://www.terraform.io) provider for OneLogin. It is build using the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework) and will support all resources that are supported by the OneLogin Admin Api.
+This repository is a [Terraform](https://www.terraform.io) provider for OneLogin. It is build using the [Terraform Plugin Framework](https://github.com/hashicorp/terraform-plugin-framework) and will support all resources that are supported by the [OneLogin Admin Api](https://developers.onelogin.com/api-docs/2/getting-started/dev-overview).
 
 ## Requirements
 
@@ -36,6 +36,19 @@ provider_installation {
 }
 ```
 
+Then import the resource in any Terraform config files as
+```
+terraform {
+  required_providers {
+    onelogin = {
+      source = "github.com/ghaggin/onelogin"
+    }
+  }
+}
+```
+
+Note: you do not need to run `terraform init` when loading the plugin locally.
+
 ## Developing the Provider
 
 If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
@@ -52,10 +65,41 @@ export SUBDOMAIN='<subdomain>',
 make testacc
 ```
 
-# Notes
-- app icon_url does not work
-- can auth_method/auth_method_description be arbitrarily set or are they defined for each connector
-  - check the connector list, some have auth_method, others do not
-  - gussing that auth_method can be set if it is not in the connector list, otherwise no
-- parameter delete does not work (filed ticket with OL)
-- parameter add doesn't properly set skip_if_blank for the second parameter added in some cases (filed ticket with OL)
+To run the provider from a terraform config directory, setup the provider to run locally and then export the client details the same as when running acceptance tests, but with `TF_VAR_` appended.
+```shell
+export TF_VAR_CLIENT_ID="$CLIENT_ID"
+export TF_VAR_CLIENT_SECRET="$CLIENT_SECRET"
+export TF_VAR_SUBDOMAIN="$SUBDOMAIN"
+```
+Then add this block to your terraform config to setup the provider.
+```
+variable "SUBDOMAIN" {
+  type = string
+}
+
+variable "CLIENT_ID" {
+  type      = string
+  sensitive = true
+}
+
+variable "CLIENT_SECRET" {
+  type      = string
+  sensitive = true
+}
+
+provider "onelogin" {
+  client_id     = var.CLIENT_ID
+  client_secret = var.CLIENT_SECRET
+  subdomain     = var.SUBDOMAIN
+}
+```
+
+# TODO
+- [ ] Applications
+  - [ ] SAML
+  - [ ] SCIM
+  - ...
+- [ ] Application Rules
+- [ ] Mappings
+- [ ] Users
+- [ ] Roles

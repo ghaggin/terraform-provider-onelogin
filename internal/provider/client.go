@@ -46,9 +46,10 @@ const (
 	methodPut    method = http.MethodPut
 	methodDelete method = http.MethodDelete
 
-	pathApps  = "/api/2/apps"
-	pathRoles = "/api/2/roles"
-	pathUsers = "/api/2/users"
+	pathApps     = "/api/2/apps"
+	pathRoles    = "/api/2/roles"
+	pathUsers    = "/api/2/users"
+	pathMappings = "/api/2/mappings"
 )
 
 type oneloginRequest struct {

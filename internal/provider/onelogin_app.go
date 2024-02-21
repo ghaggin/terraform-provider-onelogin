@@ -555,7 +555,7 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 	if err != nil {
 		d.AddError(
 			"client error",
-			fmt.Sprintf("Unable to read user %v, got error: %s", id, err),
+			fmt.Sprintf("Unable to read app %v, got error: %s", id, err),
 		)
 		return
 	}
