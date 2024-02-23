@@ -46,10 +46,11 @@ const (
 	MethodPut    method = http.MethodPut
 	MethodDelete method = http.MethodDelete
 
-	PathApps     = "/api/2/apps"
-	PathRoles    = "/api/2/roles"
-	PathUsers    = "/api/2/users"
-	PathMappings = "/api/2/mappings"
+	PathApps         = "/api/2/apps"
+	PathRoles        = "/api/2/roles"
+	PathUsers        = "/api/2/users"
+	PathMappings     = "/api/2/mappings"
+	PathMappingsSort = "/api/2/mappings/sort"
 )
 
 type Request struct {

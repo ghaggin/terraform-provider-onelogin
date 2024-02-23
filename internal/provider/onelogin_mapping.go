@@ -34,12 +34,13 @@ type oneloginMappingResource struct {
 	client *onelogin.Client
 }
 
+// Position and Enabled are set via the mapping_order resource.
+// This is is necessary due to how position affects multiple resources
+// and must be changed in conjunction with enabled.
 type oneloginMapping struct {
 	ID         types.Int64  `tfsdk:"id"`
 	Name       types.String `tfsdk:"name"`
 	Match      types.String `tfsdk:"match"`
-	Enabled    types.Bool   `tfsdk:"enabled"`
-	Position   types.Int64  `tfsdk:"position"`
 	Conditions types.List   `tfsdk:"conditions"`
 	Actions    types.List   `tfsdk:"actions"`
 }
@@ -91,22 +92,6 @@ func (d *oneloginMappingResource) Schema(ctx context.Context, req resource.Schem
 			},
 			"match": schema.StringAttribute{
 				Required: true,
-			},
-			"enabled": schema.BoolAttribute{
-				Required: true,
-			},
-
-			// TODO: make this work..
-			// Issues:
-			//  - update does not work.  use bulk sort: https://developers.onelogin.com/api-docs/2/user-mappings/bulk-sort
-			//  - handle position for disabled mapping
-			//  - create needs to sort the mapping into the existing mappings
-			"position": schema.Int64Attribute{
-				Optional:      true,
-				Computed:      true,
-				PlanModifiers: []planmodifier.Int64{
-					// int64planmodifier.UseStateForUnknown(),
-				},
 			},
 
 			// Condition  sources, operators and values can be discovered with these endpoints
@@ -161,8 +146,10 @@ func (d *oneloginMappingResource) Create(ctx context.Context, req resource.Creat
 
 	native := state.toNativeMapping(ctx)
 
-	// TODO: Implement the position logic
+	// Always create in the disabled state
+	// Position and enable are set via the mapping_order resource
 	native.Position = nil
+	native.Enabled = false
 
 	var mapping onelogin.Mapping
 	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
@@ -204,12 +191,27 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 
 	id := state.ID.ValueInt64()
 
+	// Get the current enabled/disabled state from OneLogin and use that
+	var mappingResp onelogin.Mapping
+	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
+		RespModel: &mappingResp,
+	})
+	if err != nil || mappingResp.ID != id {
+		resp.Diagnostics.AddError(
+			"Error updating mapping",
+			fmt.Sprintf("Could not get mapping with id:%v  error:%v ", id, err.Error()),
+		)
+		return
+	}
+
 	mappingBody := state.toNativeMapping(ctx)
 	mappingBody.ID = 0
 	mappingBody.Position = nil
+	mappingBody.Enabled = mappingResp.Enabled
 
-	var mappingResp onelogin.Mapping
-	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err = d.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 		Body:      mappingBody,
@@ -296,11 +298,9 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 
 func (state *oneloginMapping) toNativeMapping(ctx context.Context) *onelogin.Mapping {
 	native := &onelogin.Mapping{
-		ID:       state.ID.ValueInt64(),
-		Name:     state.Name.ValueString(),
-		Match:    state.Match.ValueString(),
-		Enabled:  state.Enabled.ValueBool(),
-		Position: state.Position.ValueInt64Pointer(),
+		ID:    state.ID.ValueInt64(),
+		Name:  state.Name.ValueString(),
+		Match: state.Match.ValueString(),
 	}
 
 	conditions := []oneloginMappingCondition{}
@@ -329,14 +329,9 @@ func (state *oneloginMapping) toNativeMapping(ctx context.Context) *onelogin.Map
 
 func mappingToState(ctx context.Context, mapping *onelogin.Mapping) (*oneloginMapping, diag.Diagnostics) {
 	state := &oneloginMapping{
-		ID:      types.Int64Value(mapping.ID),
-		Name:    types.StringValue(mapping.Name),
-		Match:   types.StringValue(mapping.Match),
-		Enabled: types.BoolValue(mapping.Enabled),
-	}
-
-	if mapping.Position != nil {
-		state.Position = types.Int64Value(*mapping.Position)
+		ID:    types.Int64Value(mapping.ID),
+		Name:  types.StringValue(mapping.Name),
+		Match: types.StringValue(mapping.Match),
 	}
 
 	diags := diag.Diagnostics{}
