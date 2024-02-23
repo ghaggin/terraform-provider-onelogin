@@ -12,7 +12,6 @@ func (s *providerTestSuite) Test_mappingToState() {
 	id := int64(1234)
 	name := "test_name"
 	match := "test_match"
-	position := int64(1)
 	source := "test_source"
 	operator := "test_operator"
 	value := "test_value"
@@ -24,7 +23,7 @@ func (s *providerTestSuite) Test_mappingToState() {
 		ID:       id,
 		Name:     name,
 		Match:    match,
-		Position: &position,
+		Position: nil,
 		Conditions: []onelogin.MappingCondition{
 			{
 				Source:   source,
@@ -48,7 +47,6 @@ func (s *providerTestSuite) Test_mappingToState() {
 	s.Equal(id, state.ID.ValueInt64())
 	s.Equal(name, state.Name.ValueString())
 	s.Equal(match, state.Match.ValueString())
-	s.Equal(position, state.Position.ValueInt64())
 
 	conditions := []oneloginMappingCondition{}
 	state.Conditions.ElementsAs(ctx, &conditions, false)
@@ -68,9 +66,10 @@ func (s *providerTestSuite) Test_mappingToState() {
 	s.Equal(actionValue2, values[1])
 
 	newNativeMapping := state.toNativeMapping(ctx)
-	s.Equal(newNativeMapping, nativeMapping)
+	s.Equal(nativeMapping, newNativeMapping)
 }
 
+// Test mappings without position
 func (s *providerTestSuite) TestAccResourceMapping() {
 	name := "test_mapping"
 
@@ -79,6 +78,7 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 		Steps: []resource.TestStep{
 			{
 				Config: s.providerConfig + fmt.Sprintf(`
+					# required in next step
 					resource "onelogin_role" "test" {
 						name = "test_role_1234"
 					}
@@ -86,7 +86,6 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 					resource "onelogin_mapping" "test" {
 						name = "%v"
 						match = "all"
-						enabled = true
 						conditions = [
 							{
 								source = "last_login"
@@ -105,13 +104,12 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", name),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "all"),
-					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "true"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "false"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "last_login"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", ">"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.value", "90"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.action", "set_status"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.value.0", "2"),
-					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "position"),
 				),
 			},
 			{
@@ -123,7 +121,6 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 					resource "onelogin_mapping" "test" {
 						name = "%v_1234"
 						match = "any"
-						enabled = false
 						conditions = [
 							{
 								source = "has_role"
@@ -148,7 +145,6 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "conditions.0.value"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.action", "add_role"),
 					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "actions.0.value.0"),
-					// resource.TestCheckResourceAttrSet("onelogin_mapping.test", "position"),
 				),
 			},
 			{
