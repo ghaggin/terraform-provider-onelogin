@@ -34,11 +34,13 @@ type oneloginMappingResource struct {
 	client *onelogin.Client
 }
 
+// Position and Enabled are set via the mapping_order resource.
+// This is is necessary due to how position affects multiple resources
+// and must be changed in conjunction with enabled.
 type oneloginMapping struct {
 	ID         types.Int64  `tfsdk:"id"`
 	Name       types.String `tfsdk:"name"`
 	Match      types.String `tfsdk:"match"`
-	Enabled    types.Bool   `tfsdk:"enabled"`
 	Conditions types.List   `tfsdk:"conditions"`
 	Actions    types.List   `tfsdk:"actions"`
 }
@@ -90,9 +92,6 @@ func (d *oneloginMappingResource) Schema(ctx context.Context, req resource.Schem
 			},
 			"match": schema.StringAttribute{
 				Required: true,
-			},
-			"enabled": schema.BoolAttribute{
-				Computed: true,
 			},
 
 			// Condition  sources, operators and values can be discovered with these endpoints
@@ -299,10 +298,9 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 
 func (state *oneloginMapping) toNativeMapping(ctx context.Context) *onelogin.Mapping {
 	native := &onelogin.Mapping{
-		ID:      state.ID.ValueInt64(),
-		Name:    state.Name.ValueString(),
-		Match:   state.Match.ValueString(),
-		Enabled: state.Enabled.ValueBool(),
+		ID:    state.ID.ValueInt64(),
+		Name:  state.Name.ValueString(),
+		Match: state.Match.ValueString(),
 	}
 
 	conditions := []oneloginMappingCondition{}
@@ -331,10 +329,9 @@ func (state *oneloginMapping) toNativeMapping(ctx context.Context) *onelogin.Map
 
 func mappingToState(ctx context.Context, mapping *onelogin.Mapping) (*oneloginMapping, diag.Diagnostics) {
 	state := &oneloginMapping{
-		ID:      types.Int64Value(mapping.ID),
-		Name:    types.StringValue(mapping.Name),
-		Match:   types.StringValue(mapping.Match),
-		Enabled: types.BoolValue(mapping.Enabled),
+		ID:    types.Int64Value(mapping.ID),
+		Name:  types.StringValue(mapping.Name),
+		Match: types.StringValue(mapping.Match),
 	}
 
 	diags := diag.Diagnostics{}

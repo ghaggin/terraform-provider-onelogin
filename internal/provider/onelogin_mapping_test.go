@@ -104,7 +104,6 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", name),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "all"),
-					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "false"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "last_login"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", ">"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.value", "90"),
@@ -139,7 +138,6 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", name+"_1234"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "any"),
-					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "false"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "has_role"),
 					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", "ri"),
 					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "conditions.0.value"),

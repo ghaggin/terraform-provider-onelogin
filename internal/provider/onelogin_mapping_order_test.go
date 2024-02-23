@@ -141,7 +141,6 @@ func (s *providerTestSuite) TestAccResourceMappingOrderIntegrated() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "enabled.#", fmt.Sprintf("%v", len(enabled))),
 					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "disabled.#", fmt.Sprintf("%v", len(disabled)+1)),
-					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "false"),
 				),
 			},
 			{
@@ -172,7 +171,6 @@ func (s *providerTestSuite) TestAccResourceMappingOrderIntegrated() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "enabled.#", fmt.Sprintf("%v", len(enabled)+1)),
 					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "disabled.#", fmt.Sprintf("%v", len(disabled))),
-					resource.TestCheckResourceAttr("onelogin_mapping.test", "enabled", "true"),
 				),
 			},
 		},
