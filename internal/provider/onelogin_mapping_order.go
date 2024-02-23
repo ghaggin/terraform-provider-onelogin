@@ -34,12 +34,6 @@ type oneloginMappingOrder struct {
 	Disabled []int64 `tfsdk:"disabled"`
 }
 
-type oneloginNativeMappingOrder []struct {
-	ID       int64 `json:"id"`
-	Enabled  bool  `json:"enabled"`
-	Position int64 `json:"position"`
-}
-
 func (r *oneloginMappingOrderResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_mapping_order"
 }
@@ -146,7 +140,7 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 	}
 
 	// Build maps of enabled and disabled.
-	// Validate that ids are not duplicated accross both lists
+	// Validate that ids are not duplicated across both lists
 	allInPlan := map[int64]bool{}
 	enabledInPlan := map[int64]bool{}
 	disabledInPlan := map[int64]bool{}
@@ -184,7 +178,7 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 			var updateResp struct {
 				ID int64 `json:"id"`
 			}
-			err := r.client.ExecRequest(&onelogin.Request{
+			err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 				Method:    onelogin.MethodPut,
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
@@ -210,7 +204,7 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 			var updateResp struct {
 				ID int64 `json:"id"`
 			}
-			err := r.client.ExecRequest(&onelogin.Request{
+			err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 				Method:    onelogin.MethodPut,
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
@@ -225,7 +219,7 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 
 	// Sort enabled mappings
 	var sortResp []int64
-	err := r.client.ExecRequest(&onelogin.Request{
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodPut,
 		Path:      onelogin.PathMappingsSort,
 		Body:      state.Enabled,
@@ -298,7 +292,7 @@ func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelog
 
 	// Get enabled
 	var enabled []onelogin.Mapping
-	err := r.client.ExecRequest(&onelogin.Request{
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodGet,
 		Path:      onelogin.PathMappings,
 		RespModel: &enabled,
@@ -338,7 +332,7 @@ func (r *oneloginMappingOrderResource) getDisabled(ctx context.Context) ([]onelo
 
 	// Get disabled
 	var disabled []onelogin.Mapping
-	err := r.client.ExecRequest(&onelogin.Request{
+	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
 		Method:    onelogin.MethodGet,
 		Path:      onelogin.PathMappings,
 		RespModel: &disabled,
