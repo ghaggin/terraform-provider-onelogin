@@ -8,6 +8,8 @@ on:
     paths-ignore:
       - 'README.md'
   push:
+    branches:
+      - master
     paths-ignore:
       - 'README.md'
 
@@ -57,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # list whatever Terraform versions here you would like to support
+        max-parallel: 1
         terraform:
           - '1.5.*'
           - '1.6.*'
