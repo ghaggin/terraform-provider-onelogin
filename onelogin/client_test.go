@@ -17,7 +17,19 @@ type clientTestSuite struct {
 	clientSecret string
 	subdomain    string
 
+	client *Client
+
 	ctx context.Context
+}
+
+func (s *clientTestSuite) SetupTest() {
+	c, err := NewClient(&ClientConfig{
+		ClientID:     s.clientID,
+		ClientSecret: s.clientSecret,
+		Subdomain:    s.subdomain,
+	})
+	s.Require().NoError(err)
+	s.client = c
 }
 
 func TestClient(t *testing.T) {
@@ -71,4 +83,33 @@ func (s *clientTestSuite) Test_getToken() {
 	s.NotEqual(testExpiration, c.authExpiration)
 	s.NotEqual(time.Time{}, c.authExpiration)
 	s.True(time.Now().Before(c.authExpiration))
+}
+
+func (s *clientTestSuite) Test_ExecRequestPaged() {
+	var resp1 []Role
+	err := s.client.ExecRequestPaged(&Request{
+		Method:    MethodGet,
+		Path:      PathRoles,
+		RespModel: &resp1,
+	}, &Page{
+		Limit: 2,
+		Page:  1,
+	})
+	s.Require().NoError(err)
+
+	var resp2 []Role
+	err = s.client.ExecRequestPaged(&Request{
+		Method:    MethodGet,
+		Path:      PathRoles,
+		RespModel: &resp2,
+	}, &Page{
+		Limit: 1,
+		Page:  2,
+	})
+	s.Require().NoError(err)
+
+	s.Require().Equal(2, len(resp1))
+	s.Require().Equal(1, len(resp2))
+
+	s.Equal(resp1[1].ID, resp2[0].ID)
 }

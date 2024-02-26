@@ -97,6 +97,7 @@ func (d *oneloginRoleResource) Create(ctx context.Context, req resource.CreateRe
 
 	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathRoles,
 		Body:      state.toNative(ctx),
@@ -160,6 +161,7 @@ func (d *oneloginRoleResource) Update(ctx context.Context, req resource.UpdateRe
 
 	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
 		Body:      body,
@@ -198,8 +200,9 @@ func (d *oneloginRoleResource) Delete(ctx context.Context, req resource.DeleteRe
 
 	// queryParams is inexplicably unused
 	err := d.client.ExecRequest(&onelogin.Request{
-		Method: onelogin.MethodDelete,
-		Path:   fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
+		Context: ctx,
+		Method:  onelogin.MethodDelete,
+		Path:    fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -237,6 +240,7 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64) (*oneloginRol
 	// but it is impossible to use query params when getting role by ID.
 	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, id),
 		RespModel: &role,

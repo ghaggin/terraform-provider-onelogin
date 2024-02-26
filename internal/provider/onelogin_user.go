@@ -81,8 +81,9 @@ func (d *oneloginUserDataSource) Read(ctx context.Context, req datasource.ReadRe
 	var users []onelogin.User
 
 	err := d.client.ExecRequest(&onelogin.Request{
-		Method: onelogin.MethodGet,
-		Path:   onelogin.PathUsers,
+		Context: ctx,
+		Method:  onelogin.MethodGet,
+		Path:    onelogin.PathUsers,
 		QueryParams: onelogin.QueryParams{
 			"username": username,
 		},
@@ -160,7 +161,8 @@ func (r *oneloginUserResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	var userResp onelogin.User
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathUsers,
 		RespModel: &userResp,
@@ -219,7 +221,8 @@ func (r *oneloginUserResource) Update(ctx context.Context, req resource.UpdateRe
 
 	// Update user
 	var userResp onelogin.User
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
 		RespModel: &userResp,
@@ -255,9 +258,10 @@ func (r *oneloginUserResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	// Delete user
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
-		Method: onelogin.MethodDelete,
-		Path:   fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context: ctx,
+		Method:  onelogin.MethodDelete,
+		Path:    fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -291,6 +295,7 @@ func (r *oneloginUserResource) read(ctx context.Context, state *oneloginUserMode
 	id := state.ID.ValueInt64()
 
 	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathUsers, id),
 		RespModel: &user,

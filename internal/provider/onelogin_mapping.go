@@ -152,7 +152,8 @@ func (d *oneloginMappingResource) Create(ctx context.Context, req resource.Creat
 	native.Enabled = false
 
 	var mapping onelogin.Mapping
-	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathMappings,
 		Body:      native,
@@ -193,7 +194,8 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 
 	// Get the current enabled/disabled state from OneLogin and use that
 	var mappingResp onelogin.Mapping
-	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 		RespModel: &mappingResp,
@@ -211,7 +213,8 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 	mappingBody.Position = nil
 	mappingBody.Enabled = mappingResp.Enabled
 
-	err = d.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err = d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 		Body:      mappingBody,
@@ -237,9 +240,10 @@ func (d *oneloginMappingResource) Delete(ctx context.Context, req resource.Delet
 	}
 
 	id := state.ID.ValueInt64()
-	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
-		Method: onelogin.MethodDelete,
-		Path:   fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
+	err := d.client.ExecRequest(&onelogin.Request{
+		Context: ctx,
+		Method:  onelogin.MethodDelete,
+		Path:    fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -271,7 +275,8 @@ func (d *oneloginMappingResource) readToState(ctx context.Context, state *onelog
 	var mapping onelogin.Mapping
 	id := state.ID.ValueInt64()
 
-	err := d.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 		RespModel: &mapping,

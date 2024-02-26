@@ -370,6 +370,7 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 	app := state.toNativApp(ctx)
 	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPost,
 		Path:      onelogin.PathApps,
 		Body:      app,
@@ -416,6 +417,7 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 
 	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
 		Body:      state.toNativApp(ctx),
@@ -450,8 +452,9 @@ func (d *oneloginAppResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	err := d.client.ExecRequest(&onelogin.Request{
-		Method: onelogin.MethodDelete,
-		Path:   fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
+		Context: ctx,
+		Method:  onelogin.MethodDelete,
+		Path:    fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
 	})
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -485,6 +488,7 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 	id := state.ID.ValueInt64()
 
 	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, id),
 		RespModel: &app,

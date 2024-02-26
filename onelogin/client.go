@@ -8,11 +8,17 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
 const (
-	DefaultTimeout = 10 * time.Second
+	DefaultTimeout = 60 * time.Second
+)
+
+var (
+	ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
+	ErrNoMorePages       = fmt.Errorf("no more pages")
 )
 
 type Client struct {
@@ -20,6 +26,8 @@ type Client struct {
 	httpClient     *http.Client
 	authToken      string
 	authExpiration time.Time
+
+	maxPageSize map[string]int
 }
 
 type ClientConfig struct {
@@ -54,6 +62,7 @@ const (
 )
 
 type Request struct {
+	Context     context.Context
 	Method      method
 	Path        string
 	QueryParams QueryParamInterface
@@ -64,6 +73,7 @@ type Request struct {
 type QueryParamInterface interface {
 	// to query string returns a query string from the queryParams instance
 	toQueryString() string
+	add(key string, value interface{})
 }
 
 type QueryParams map[string]interface{}
@@ -81,6 +91,10 @@ func (q QueryParams) toQueryString() string {
 	return "?" + values.Encode()
 }
 
+func (q QueryParams) add(key string, value interface{}) {
+	q[key] = value
+}
+
 func NewClient(config *ClientConfig) (*Client, error) {
 	if config.Timeout == 0 {
 		config.Timeout = DefaultTimeout
@@ -90,6 +104,10 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		config: config,
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
+		},
+
+		maxPageSize: map[string]int{
+			PathRoles: 650,
 		},
 	}
 
@@ -157,45 +175,16 @@ func (c *Client) authRequest(ctx context.Context) (*authResponse, error) {
 }
 
 func (c *Client) ExecRequest(req *Request) error {
-	return c.ExecRequestCtx(context.Background(), req)
-}
+	httpReq, err := c.requestToHTTP(req)
+	if err != nil {
+		return err
+	}
 
-func (c *Client) ExecRequestCtx(ctx context.Context, req *Request) error {
-	// add configured timeout to context
-	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
+	// Add default timeout
+	ctx, cancel := context.WithTimeout(httpReq.Context(), c.config.Timeout)
 	defer cancel()
 
-	url := fmt.Sprintf("https://%s.onelogin.com%s", c.config.Subdomain, req.Path)
-	if req.QueryParams != nil {
-		url += req.QueryParams.toQueryString()
-	}
-
-	var body io.Reader
-	if req.Body != nil {
-		bodyBytes, err := json.Marshal(req.Body)
-		if err != nil {
-			return err
-		}
-		body = bytes.NewReader(bodyBytes)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, string(req.Method), url, body)
-	if err != nil {
-		return err
-	}
-
-	token, err := c.getToken(ctx)
-	if err != nil {
-		return err
-	}
-
-	httpReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-
-	if body != nil {
-		httpReq.Header.Add("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.httpClient.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return err
 	}
@@ -209,6 +198,118 @@ func (c *Client) ExecRequestCtx(ctx context.Context, req *Request) error {
 
 	if req.RespModel != nil {
 		return json.NewDecoder(resp.Body).Decode(req.RespModel)
+	}
+
+	return nil
+}
+
+// getting unexpect context cancelation errors with this function
+func (c *Client) execRequestWithTimeout(req *http.Request) (*http.Response, error) {
+	// Add default timeout
+	ctx, cancel := context.WithTimeout(req.Context(), c.config.Timeout)
+	defer cancel()
+
+	return c.httpClient.Do(req.WithContext(ctx))
+}
+
+func (c *Client) requestToHTTP(req *Request) (*http.Request, error) {
+	if req.Context == nil {
+		req.Context = context.Background()
+	}
+
+	url := fmt.Sprintf("https://%s.onelogin.com%s", c.config.Subdomain, req.Path)
+	if req.QueryParams != nil {
+		url += req.QueryParams.toQueryString()
+	}
+
+	var body io.Reader
+	if req.Body != nil {
+		bodyBytes, err := json.Marshal(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewReader(bodyBytes)
+	}
+
+	httpReq, err := http.NewRequestWithContext(req.Context, string(req.Method), url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := c.getToken(req.Context)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	if body != nil {
+		httpReq.Header.Add("Content-Type", "application/json")
+	}
+
+	return httpReq, nil
+}
+
+type Page struct {
+	Limit int
+	Page  int
+}
+
+// Pagination reference: https://developers.onelogin.com/api-docs/2/getting-started/using-query-parameters#pagination
+func (c *Client) ExecRequestPaged(req *Request, page *Page) error {
+	if req.QueryParams == nil {
+		req.QueryParams = QueryParams{}
+	}
+
+	maxLimit, ok := c.maxPageSize[req.Path]
+	if !ok {
+		return fmt.Errorf("max page size not configured for path %s", req.Path)
+	}
+
+	if page.Limit > maxLimit {
+		page.Limit = maxLimit
+	}
+
+	req.QueryParams.add("limit", page.Limit)
+	req.QueryParams.add("page", page.Page)
+
+	httpReq, err := c.requestToHTTP(req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.execRequestWithTimeout(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return fmt.Errorf("rate limit exceeded")
+	} else if resp.StatusCode/100 != 2 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))
+	}
+
+	if req.RespModel != nil {
+		err = json.NewDecoder(resp.Body).Decode(req.RespModel)
+		if err != nil {
+			return err
+		}
+	}
+
+	totalPagesString := resp.Header.Get("Total-Pages")
+	if totalPagesString == "" {
+		return fmt.Errorf("missing Total-Pages header")
+	}
+
+	totalPages, err := strconv.Atoi(totalPagesString)
+	if err != nil {
+		return err
+	}
+
+	if page.Page == totalPages {
+		return ErrNoMorePages
 	}
 
 	return nil

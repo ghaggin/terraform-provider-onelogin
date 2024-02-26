@@ -188,7 +188,8 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 			var updateResp struct {
 				ID int64 `json:"id"`
 			}
-			err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+			err := r.client.ExecRequest(&onelogin.Request{
+				Context:   ctx,
 				Method:    onelogin.MethodPut,
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
@@ -214,7 +215,8 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 			var updateResp struct {
 				ID int64 `json:"id"`
 			}
-			err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+			err := r.client.ExecRequest(&onelogin.Request{
+				Context:   ctx,
 				Method:    onelogin.MethodPut,
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
@@ -229,7 +231,8 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 
 	// Sort enabled mappings
 	var sortResp []int64
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      onelogin.PathMappingsSort,
 		Body:      state.Enabled,
@@ -302,7 +305,8 @@ func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelog
 
 	// Get enabled
 	var enabled []onelogin.Mapping
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      onelogin.PathMappings,
 		RespModel: &enabled,
@@ -342,7 +346,8 @@ func (r *oneloginMappingOrderResource) getDisabled(ctx context.Context) ([]onelo
 
 	// Get disabled
 	var disabled []onelogin.Mapping
-	err := r.client.ExecRequestCtx(ctx, &onelogin.Request{
+	err := r.client.ExecRequest(&onelogin.Request{
+		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      onelogin.PathMappings,
 		RespModel: &disabled,

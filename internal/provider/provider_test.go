@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -57,6 +58,7 @@ func TestProvider(t *testing.T) {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Subdomain:    subdomain,
+		Timeout:      60 * time.Second,
 	})
 	require.NoError(t, err)
 
