@@ -79,12 +79,22 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 	}
 
 	if len(enabled) != len(state.Enabled) {
-		resp.Diagnostics.AddError("enabled length different in config and onelogin", "Please update the enabled mappings to match onelogin, including position")
+		inOneloginIDs := make([]int64, len(enabled))
+		for i, m := range enabled {
+			inOneloginIDs[i] = m.ID
+		}
+		inState, inOnelogin := findDifference(state.Enabled, inOneloginIDs)
+		resp.Diagnostics.AddError("enabled length different in config and onelogin", fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin))
 		return
 	}
 
 	if len(disabled) != len(state.Disabled) {
-		resp.Diagnostics.AddError("disabled length different in config and onelogin", "Please update the disabled mappings to match onelogin")
+		inOneloginIDs := make([]int64, len(disabled))
+		for i, m := range disabled {
+			inOneloginIDs[i] = m.ID
+		}
+		inState, inOnelogin := findDifference(state.Disabled, inOneloginIDs)
+		resp.Diagnostics.AddError("disabled length different in config and onelogin", fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin))
 	}
 
 	if diags.HasError() {
@@ -94,7 +104,7 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 	// Reconcile enabled
 	for i, id := range state.Enabled {
 		if enabled[i].ID != id {
-			resp.Diagnostics.AddError("enabled mappings do not match onelogin", "Please update the enabled mappings to match onelogin, including position")
+			resp.Diagnostics.AddError("enabled mappings do not match onelogin", fmt.Sprintf("position: %d\nconfig: %d\nonelogin: %d", i, id, enabled[i].ID))
 			return
 		}
 	}
@@ -102,7 +112,7 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 	// Reconcile disabled
 	for i, id := range state.Disabled {
 		if disabled[i].ID != id {
-			resp.Diagnostics.AddError("disabled mappings do not match onelogin", "Please update the disabled mappings to match onelogin")
+			resp.Diagnostics.AddError("disabled mappings do not match onelogin", fmt.Sprintf("position: %d\nconfig: %d\nonelogin: %d", i, id, enabled[i].ID))
 			return
 		}
 	}
@@ -346,4 +356,39 @@ func (r *oneloginMappingOrderResource) getDisabled(ctx context.Context) ([]onelo
 	}
 
 	return disabled, nil
+}
+
+func findDifference(a, b []int64) ([]int64, []int64) {
+	aNotInB := []int64{}
+	bNotInA := []int64{}
+
+	aElements := make(map[int64]bool)
+	bElements := make(map[int64]bool)
+
+	// Add all elements of a to aElements
+	for _, e := range a {
+		aElements[e] = true
+	}
+
+	// Check if b elements are in a
+	// -and-
+	// Add all elements of b to bElements
+	for _, e := range b {
+		_, ok := aElements[e]
+		if !ok {
+			bNotInA = append(bNotInA, e)
+		}
+
+		bElements[e] = true
+	}
+
+	// Check if a elements are in b
+	for _, e := range a {
+		_, ok := bElements[e]
+		if !ok {
+			aNotInB = append(aNotInB, e)
+		}
+	}
+
+	return aNotInB, bNotInA
 }
