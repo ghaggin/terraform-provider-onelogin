@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -215,6 +216,74 @@ func (s *providerTestSuite) TestAccOneloginRoleIntegrated() {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"last_updated"},
+			},
+		},
+	})
+}
+
+func (s *providerTestSuite) TestAccOneloginRoleImported() {
+	var users []onelogin.User
+	err := s.client.ExecRequestPaged(&onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      onelogin.PathUsers,
+		RespModel: &users,
+	}, &onelogin.Page{
+		Limit: 2,
+		Page:  1,
+	})
+	s.Require().Nil(err)
+	s.Require().Len(users, 2)
+
+	var apps []onelogin.Application
+	err = s.client.ExecRequestPaged(&onelogin.Request{
+		Method:    onelogin.MethodGet,
+		Path:      onelogin.PathApps,
+		RespModel: &apps,
+	}, &onelogin.Page{
+		Limit: 2,
+		Page:  1,
+	})
+	s.Require().Nil(err)
+	s.Require().Len(apps, 2)
+
+	roleName := "test_role_" + s.randString()
+
+	var role struct {
+		Id int64
+	}
+	err = s.client.ExecRequest(&onelogin.Request{
+		Method: onelogin.MethodPost,
+		Path:   onelogin.PathRoles,
+		Body: onelogin.Role{
+			Name:  roleName,
+			Users: []int64{users[0].ID},
+			Apps:  []int64{apps[0].ID},
+		},
+		RespModel: &role,
+	})
+	s.Require().Nil(err)
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: s.providerConfig + fmt.Sprintf(`
+					import {
+						id = %v
+						to = onelogin_role.test_role
+					}
+					resource "onelogin_role" "test_role" {
+						name = "%v"
+						apps = [%v]
+					}
+				`, role.Id, roleName, apps[0].ID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "name", roleName),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.#", "1"),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.0", fmt.Sprintf("%v", users[0].ID)),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "apps.#", "1"),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "apps.0", fmt.Sprintf("%v", apps[0].ID)),
+				),
 			},
 		},
 	})

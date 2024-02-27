@@ -75,6 +75,7 @@ func (d *oneloginRoleResource) Schema(ctx context.Context, req resource.SchemaRe
 			"users": schema.ListAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
+				Computed:    true,
 			},
 
 			// Note: attribute local to terraform objects

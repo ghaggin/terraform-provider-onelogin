@@ -18,6 +18,7 @@ const (
 
 var (
 	ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
+	ErrBadGateway        = fmt.Errorf("bad gateway")
 	ErrNoMorePages       = fmt.Errorf("no more pages")
 )
 
@@ -108,6 +109,8 @@ func NewClient(config *ClientConfig) (*Client, error) {
 
 		maxPageSize: map[string]int{
 			PathRoles: 650,
+			PathApps:  1000,
+			PathUsers: 50,
 		},
 	}
 
@@ -203,15 +206,6 @@ func (c *Client) ExecRequest(req *Request) error {
 	return nil
 }
 
-// getting unexpect context cancelation errors with this function
-func (c *Client) execRequestWithTimeout(req *http.Request) (*http.Response, error) {
-	// Add default timeout
-	ctx, cancel := context.WithTimeout(req.Context(), c.config.Timeout)
-	defer cancel()
-
-	return c.httpClient.Do(req.WithContext(ctx))
-}
-
 func (c *Client) requestToHTTP(req *Request) (*http.Request, error) {
 	if req.Context == nil {
 		req.Context = context.Background()
@@ -278,14 +272,20 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) error {
 		return err
 	}
 
-	resp, err := c.execRequestWithTimeout(httpReq)
+	// Add default timeout
+	ctx, cancel := context.WithTimeout(httpReq.Context(), c.config.Timeout)
+	defer cancel()
+
+	resp, err := c.httpClient.Do(httpReq.WithContext(ctx))
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusTooManyRequests {
-		return fmt.Errorf("rate limit exceeded")
+	if resp.StatusCode == http.StatusBadGateway {
+		return ErrBadGateway
+	} else if resp.StatusCode == http.StatusTooManyRequests {
+		return ErrRateLimitExceeded
 	} else if resp.StatusCode/100 != 2 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))

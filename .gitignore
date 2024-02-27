@@ -36,3 +36,4 @@ website/vendor
 *.winfile eol=crlf
 
 .vscode/
+tmp/
