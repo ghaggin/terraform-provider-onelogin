@@ -4,8 +4,8 @@ This repository is a [Terraform](https://www.terraform.io) provider for OneLogin
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.5.7
-- [Go](https://golang.org/doc/install) >= 1.21
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) = 1.7
+- [Go](https://golang.org/doc/install) = 1.21
 
 ## Building The Provider
 

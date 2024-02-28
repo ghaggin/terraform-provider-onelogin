@@ -61,8 +61,6 @@ jobs:
       max-parallel: 1
       matrix:
         terraform:
-          - '1.5.*'
-          - '1.6.*'
           - '1.7.*'
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
