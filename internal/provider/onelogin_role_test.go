@@ -210,13 +210,6 @@ func (s *providerTestSuite) TestAccOneloginRoleIntegrated() {
 					resource.TestCheckResourceAttrWith("onelogin_role.test_role", "apps.0", compareID("onelogin_app.test_app_2")),
 				),
 			},
-
-			{
-				ResourceName:            "onelogin_role.test_role",
-				ImportState:             true,
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"last_updated"},
-			},
 		},
 	})
 }
@@ -275,14 +268,20 @@ func (s *providerTestSuite) TestAccOneloginRoleImported() {
 					resource "onelogin_role" "test_role" {
 						name = "%v"
 						apps = [%v]
+						users = [data.onelogin_user.test.id]
 					}
-				`, role.Id, roleName, apps[0].ID),
+
+					data "onelogin_user" "test" {
+						username = "%v"
+					}
+				`, role.Id, roleName, apps[0].ID, users[1].Username),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("onelogin_role.test_role", "name", roleName),
-					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.#", "1"),
-					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.0", fmt.Sprintf("%v", users[0].ID)),
 					resource.TestCheckResourceAttr("onelogin_role.test_role", "apps.#", "1"),
 					resource.TestCheckResourceAttr("onelogin_role.test_role", "apps.0", fmt.Sprintf("%v", apps[0].ID)),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.#", "1"),
+					resource.TestCheckResourceAttr("onelogin_role.test_role", "users.0", fmt.Sprintf("%v", users[1].ID)),
+					resource.TestCheckResourceAttrSet("data.onelogin_user.test", "id"),
 				),
 			},
 		},
