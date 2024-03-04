@@ -38,3 +38,4 @@ website/vendor
 .vscode/
 tmp/
 run.sh
+.envrc

@@ -120,7 +120,10 @@ func (d *devLogger) log(level LogLevel, msg string, fields ...map[string]interfa
 	}
 	buf.WriteString("\n")
 
-	d.fout.Write(buf.Bytes())
+	_, err := d.fout.Write(buf.Bytes())
+	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("error writing log: %v\n", err))
+	}
 }
 
 func logLevelToString(level LogLevel) string {
