@@ -29,6 +29,7 @@ type Client struct {
 	authExpiration time.Time
 
 	maxPageSize map[string]int
+	log         Logger
 }
 
 type ClientConfig struct {
@@ -36,6 +37,7 @@ type ClientConfig struct {
 	ClientSecret string
 	Subdomain    string
 	Timeout      time.Duration
+	Logger       Logger
 }
 
 type authResponse struct {
@@ -101,8 +103,13 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		config.Timeout = DefaultTimeout
 	}
 
+	if config.Logger == nil {
+		config.Logger = &noopLogger{}
+	}
+
 	c := &Client{
 		config: config,
+		log:    config.Logger,
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
 		},
@@ -177,7 +184,21 @@ func (c *Client) authRequest(ctx context.Context) (*authResponse, error) {
 	return &authResponse, err
 }
 
-func (c *Client) ExecRequest(req *Request) error {
+func (c *Client) ExecRequest(req *Request) (err error) {
+	c.log.Info(req.Context, "executing request", map[string]interface{}{
+		"method": req.Method,
+		"path":   req.Path,
+	})
+	defer func() {
+		if err != nil {
+			c.log.Error(req.Context, "request failed", map[string]interface{}{
+				"method": req.Method,
+				"path":   req.Path,
+				"error":  err.Error(),
+			})
+		}
+	}()
+
 	httpReq, err := c.requestToHTTP(req)
 	if err != nil {
 		return err
@@ -250,7 +271,23 @@ type Page struct {
 }
 
 // Pagination reference: https://developers.onelogin.com/api-docs/2/getting-started/using-query-parameters#pagination
-func (c *Client) ExecRequestPaged(req *Request, page *Page) error {
+func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
+	var errInfo string
+	c.log.Info(req.Context, "executing paged request", map[string]interface{}{
+		"method": req.Method,
+		"path":   req.Path,
+	})
+	defer func() {
+		if err != nil {
+			c.log.Error(req.Context, "paged request failed", map[string]interface{}{
+				"method":     req.Method,
+				"path":       req.Path,
+				"error":      err.Error(),
+				"error_info": errInfo,
+			})
+		}
+	}()
+
 	if req.QueryParams == nil {
 		req.QueryParams = QueryParams{}
 	}
@@ -283,6 +320,8 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadGateway {
+		b, _ := io.ReadAll(resp.Body)
+		errInfo = string(b)
 		return ErrBadGateway
 	} else if resp.StatusCode == http.StatusTooManyRequests {
 		return ErrRateLimitExceeded

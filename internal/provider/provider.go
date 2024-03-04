@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ghaggin/terraform-provider-onelogin/internal/util"
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -101,6 +102,9 @@ func (p *oneloginProvider) Configure(ctx context.Context, req provider.Configure
 		// but still complete after context cancellation, which leaves
 		// the state inconsistent.
 		Timeout: 60 * time.Second,
+
+		// Pass the terraform logger to the onelogin client
+		Logger: &util.TFLogger{},
 	})
 	if err != nil {
 		resp.Diagnostics.AddError("Unable to create client", err.Error())

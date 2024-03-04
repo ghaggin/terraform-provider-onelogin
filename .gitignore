@@ -37,3 +37,4 @@ website/vendor
 
 .vscode/
 tmp/
+run.sh
