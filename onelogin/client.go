@@ -22,6 +22,7 @@ var (
 	ErrNoMorePages       = fmt.Errorf("no more pages")
 )
 
+// Client to execute requests in onelogin
 type Client struct {
 	config         *ClientConfig
 	httpClient     *http.Client
@@ -32,6 +33,8 @@ type Client struct {
 	log         Logger
 }
 
+// ClientConfig sets instance, credentials, timeout
+// and logger for the Clients
 type ClientConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -40,6 +43,7 @@ type ClientConfig struct {
 	Logger       Logger
 }
 
+// authResponse json https://developers.onelogin.com/api-docs/2/oauth20-tokens/generate-tokens-2
 type authResponse struct {
 	AccessToken  string    `json:"access_token,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
@@ -49,6 +53,7 @@ type authResponse struct {
 	AccountID    int       `json:"account_id,omitempty"`
 }
 
+// http method
 type method string
 
 const (
@@ -196,7 +201,12 @@ func (c *Client) ExecRequest(req *Request) (err error) {
 				"path":   req.Path,
 				"error":  err.Error(),
 			})
+			return
 		}
+		c.log.Info(req.Context, "request succeeded", map[string]interface{}{
+			"method": req.Method,
+			"path":   req.Path,
+		})
 	}()
 
 	httpReq, err := c.requestToHTTP(req)
@@ -271,6 +281,8 @@ type Page struct {
 }
 
 // Pagination reference: https://developers.onelogin.com/api-docs/2/getting-started/using-query-parameters#pagination
+// Only used in the generator right now.  This method needs to be enhanced to match
+// ExecRequest to use in the provider.
 func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 	var errInfo string
 	c.log.Info(req.Context, "executing paged request", map[string]interface{}{
@@ -285,7 +297,12 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 				"error":      err.Error(),
 				"error_info": errInfo,
 			})
+			return
 		}
+		c.log.Info(req.Context, "request succeeded", map[string]interface{}{
+			"method": req.Method,
+			"path":   req.Path,
+		})
 	}()
 
 	if req.QueryParams == nil {

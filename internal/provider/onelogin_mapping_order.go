@@ -332,8 +332,12 @@ func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelog
 	// Ensure position value is as expected
 	// Assumptions made in this provider rely on this numbering
 	for i, m := range enabled {
-		if *m.Position != int64(i+1) {
-			diags.AddError("mapping positions are not linearly increasing starting at 1", "Assumptions made in this provider rely on this numbering")
+		expectedPosition := i + 1
+		if *m.Position != int64(expectedPosition) {
+			diags.AddError(
+				"mapping positions are not linearly increasing starting at 1",
+				fmt.Sprintf("Assumptions made in this provider rely on this numbering\nMapping id %v found at position %v, expected position %v", m.ID, *m.Position, expectedPosition),
+			)
 			return nil, diags
 		}
 	}
