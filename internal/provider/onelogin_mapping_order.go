@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -88,12 +87,12 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 		return
 	}
 
+	disabledIDs := make([]int64, len(disabled))
+	for i, m := range disabled {
+		disabledIDs[i] = m.ID
+	}
 	if len(disabled) != len(state.Disabled) {
-		inOneloginIDs := make([]int64, len(disabled))
-		for i, m := range disabled {
-			inOneloginIDs[i] = m.ID
-		}
-		inState, inOnelogin := findDifference(state.Disabled, inOneloginIDs)
+		inState, inOnelogin := findDifference(state.Disabled, disabledIDs)
 		resp.Diagnostics.AddError("disabled length different in config and onelogin", fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin))
 	}
 
@@ -110,11 +109,12 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 	}
 
 	// Reconcile disabled
-	for i, id := range state.Disabled {
-		if disabled[i].ID != id {
-			resp.Diagnostics.AddError("disabled mappings do not match onelogin", fmt.Sprintf("position: %d\nconfig: %d\nonelogin: %d", i, id, enabled[i].ID))
-			return
-		}
+	if inState, inOnelogin := findDifference(state.Disabled, disabledIDs); len(inState) != 0 || len(inOnelogin) != 0 {
+		resp.Diagnostics.AddError(
+			"disabled different in config and onelogin",
+			fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin),
+		)
+		return
 	}
 
 	// Set state
@@ -126,7 +126,52 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 }
 
 func (r *oneloginMappingOrderResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	r.readToState(ctx, &resp.State)
+	var state oneloginMappingOrder
+	diags := req.State.Get(ctx, &state)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	// Get enabled
+	enabled, diags := r.getEnabled(ctx)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	enabledIDs := make([]int64, len(enabled))
+	for i, m := range enabled {
+		enabledIDs[i] = m.ID
+	}
+
+	// Get disabled
+	disabled, diags := r.getDisabled(ctx)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+		return
+	}
+
+	disabledIDs := make([]int64, len(disabled))
+	for i, m := range disabled {
+		disabledIDs[i] = m.ID
+	}
+
+	disabledInState, disabledInOnelogin := findDifference(state.Disabled, disabledIDs)
+	if len(disabledInState) != 0 || len(disabledInOnelogin) != 0 {
+		resp.Diagnostics.AddError("found difference in disabled mappings between onelogin and config state", "")
+		return
+	}
+
+	// Convert to state
+	var newState oneloginMappingOrder
+	newState.Enabled = enabledIDs
+	newState.Disabled = state.Disabled
+
+	diags = resp.State.Set(ctx, &newState)
+	if diags.HasError() {
+		resp.Diagnostics.Append(diags...)
+	}
 }
 
 func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -267,37 +312,6 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 
 func (r *oneloginMappingOrderResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	// Noop, nothing to delete in onelogin
-}
-
-func (r *oneloginMappingOrderResource) readToState(ctx context.Context, respState *tfsdk.State) diag.Diagnostics {
-	// Get enabled
-	enabled, diags := r.getEnabled(ctx)
-	if diags.HasError() {
-		return diags
-	}
-
-	enabledIDs := make([]int64, len(enabled))
-	for i, m := range enabled {
-		enabledIDs[i] = m.ID
-	}
-
-	// Get disabled
-	disabled, diags := r.getDisabled(ctx)
-	if diags.HasError() {
-		return diags
-	}
-
-	disabledIDs := make([]int64, len(disabled))
-	for i, m := range disabled {
-		disabledIDs[i] = m.ID
-	}
-
-	// Convert to state
-	var state oneloginMappingOrder
-	state.Enabled = enabledIDs
-	state.Disabled = disabledIDs
-
-	return respState.Set(ctx, &state)
 }
 
 func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelogin.Mapping, diag.Diagnostics) {
