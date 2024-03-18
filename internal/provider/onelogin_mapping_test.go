@@ -156,7 +156,7 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 	})
 }
 
-// Test enabled mappings.  Requires mapping order resourse
+// Test enabled mappings.  Requires mapping order resources
 func (s *providerTestSuite) TestAccResourceMappingEnabled() {
 	ctx := context.Background()
 
