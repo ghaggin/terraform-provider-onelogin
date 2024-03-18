@@ -210,7 +210,11 @@ func (d *oneloginMappingResource) Update(ctx context.Context, req resource.Updat
 
 	mappingBody := state.toNativeMapping(ctx)
 	mappingBody.ID = 0
-	mappingBody.Position = nil
+	if mappingResp.Enabled {
+		mappingBody.Position = mappingResp.Position
+	} else {
+		mappingBody.Position = nil
+	}
 	mappingBody.Enabled = mappingResp.Enabled
 
 	err = d.client.ExecRequest(&onelogin.Request{

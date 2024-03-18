@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -149,6 +151,156 @@ func (s *providerTestSuite) TestAccResourceMapping() {
 				ResourceName:      "onelogin_mapping.test",
 				ImportState:       true,
 				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// Test enabled mappings.  Requires mapping order resources
+func (s *providerTestSuite) TestAccResourceMappingEnabled() {
+	ctx := context.Background()
+
+	mappingOrderResource := oneloginMappingOrderResource{
+		client: s.client,
+	}
+
+	enabled, diags := mappingOrderResource.getEnabled(ctx)
+	s.Require().Nil(diags, diags.Errors())
+
+	disabled, diags := mappingOrderResource.getDisabled(ctx)
+	s.Require().Nil(diags, diags.Errors())
+
+	enabledIDs := make([]string, len(enabled))
+	for i, m := range enabled {
+		enabledIDs[i] = strconv.Itoa(int(m.ID))
+	}
+
+	disabledIDs := make([]string, len(disabled))
+	for i, m := range disabled {
+		disabledIDs[i] = strconv.Itoa(int(m.ID))
+	}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: s.providerConfig + fmt.Sprintf(`
+					resource "onelogin_mapping_order" "test" {
+						enabled = %v
+						disabled = %v
+					}
+
+					resource "onelogin_mapping" "test" {
+						name = "test_mapping"
+						match = "all"
+						conditions = [
+							{
+								source = "last_login"
+								operator = ">"
+								value = "90"
+							}
+						]
+						actions = [
+							{
+								action = "set_status"
+								value = ["2"]
+							}
+						]
+					}
+				`, "["+strings.Join(enabledIDs, ",")+"]", "["+strings.Join(disabledIDs, ",")+",onelogin_mapping.test.id]"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "enabled.#", fmt.Sprintf("%v", len(enabled))),
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "disabled.#", fmt.Sprintf("%v", len(disabled)+1)),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", "test_mapping"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "all"),
+					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "id"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "last_login"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", ">"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.value", "90"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.action", "set_status"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.value.0", "2"),
+				),
+			},
+			{
+				Config: s.providerConfig + fmt.Sprintf(`
+					resource "onelogin_mapping_order" "test" {
+						enabled = %v
+						disabled = %v
+					}
+
+					resource "onelogin_mapping" "test" {
+						name = "test_mapping"
+						match = "all"
+						conditions = [
+							{
+								source = "last_login"
+								operator = ">"
+								value = "90"
+							}
+						]
+						actions = [
+							{
+								action = "set_status"
+								value = ["2"]
+							}
+						]
+					}
+				`, "[onelogin_mapping.test.id,"+strings.Join(enabledIDs, ",")+"]", "["+strings.Join(disabledIDs, ",")+"]"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "enabled.#", fmt.Sprintf("%v", len(enabled)+1)),
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "disabled.#", fmt.Sprintf("%v", len(disabled))),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", "test_mapping"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "all"),
+					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "id"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "last_login"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", ">"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.value", "90"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.action", "set_status"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.value.0", "2"),
+				),
+			},
+			{
+				Config: s.providerConfig + fmt.Sprintf(`
+					resource "onelogin_mapping_order" "test" {
+						enabled = %v
+						disabled = %v
+					}
+
+					resource "onelogin_mapping" "test" {
+						name = "test_mapping"
+						match = "all"
+						conditions = [
+							{
+								source = "last_login"
+								operator = ">"
+								value = "90"
+							},
+							{
+								operator = "!~"
+								source   = "member_of"
+								value    = "cn=test_group,"
+							}
+						]
+						actions = [
+							{
+								action = "set_status"
+								value = ["2"]
+							}
+						]
+					}
+				`, "[onelogin_mapping.test.id,"+strings.Join(enabledIDs, ",")+"]", "["+strings.Join(disabledIDs, ",")+"]"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "enabled.#", fmt.Sprintf("%v", len(enabled)+1)),
+					resource.TestCheckResourceAttr("onelogin_mapping_order.test", "disabled.#", fmt.Sprintf("%v", len(disabled))),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "name", "test_mapping"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "match", "all"),
+					resource.TestCheckResourceAttrSet("onelogin_mapping.test", "id"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.source", "last_login"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.operator", ">"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "conditions.0.value", "90"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.action", "set_status"),
+					resource.TestCheckResourceAttr("onelogin_mapping.test", "actions.0.value.0", "2"),
+				),
 			},
 		},
 	})
