@@ -67,6 +67,7 @@ const (
 	PathUsers        = "/api/2/users"
 	PathMappings     = "/api/2/mappings"
 	PathMappingsSort = "/api/2/mappings/sort"
+	PathConnectors   = "/api/2/connectors"
 )
 
 type Request struct {
@@ -120,9 +121,10 @@ func NewClient(config *ClientConfig) (*Client, error) {
 		},
 
 		maxPageSize: map[string]int{
-			PathRoles: 650,
-			PathApps:  1000,
-			PathUsers: 50,
+			PathRoles:      650,
+			PathApps:       1000,
+			PathUsers:      50,
+			PathConnectors: 1000,
 		},
 	}
 
@@ -290,7 +292,7 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 		"path":   req.Path,
 	})
 	defer func() {
-		if err != nil {
+		if err != nil && err != ErrNoMorePages {
 			c.log.Error(req.Context, "paged request failed", map[string]interface{}{
 				"method":     req.Method,
 				"path":       req.Path,
@@ -300,8 +302,9 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 			return
 		}
 		c.log.Info(req.Context, "request succeeded", map[string]interface{}{
-			"method": req.Method,
-			"path":   req.Path,
+			"method":     req.Method,
+			"path":       req.Path,
+			"more_pages": err == nil,
 		})
 	}()
 
