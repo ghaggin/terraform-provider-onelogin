@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/dynamicplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/mapplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -51,8 +51,8 @@ type oneloginApp struct {
 	Notes       types.String `tfsdk:"notes"`
 	PolicyID    types.Int64  `tfsdk:"policy_id"`
 
-	SSO           types.Object `tfsdk:"sso"`
-	Configuration types.Map    `tfsdk:"configuration"`
+	SSO           types.Object  `tfsdk:"sso"`
+	Configuration types.Dynamic `tfsdk:"configuration"`
 
 	Parameters types.Map `tfsdk:"parameters"`
 }
@@ -291,12 +291,11 @@ func (d *oneloginAppResource) Schema(ctx context.Context, req resource.SchemaReq
 				},
 			},
 
-			"configuration": schema.MapAttribute{
-				ElementType: types.StringType,
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Map{
-					mapplanmodifier.UseStateForUnknown(),
+			"configuration": schema.DynamicAttribute{
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Dynamic{
+					dynamicplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"parameters": schema.MapNestedAttribute{
@@ -367,7 +366,12 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
-	app := state.toNativApp(ctx)
+	app, diags := state.toNativApp(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
 		Context:   ctx,
@@ -385,7 +389,8 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	newState, diags := appToState(ctx, &appResp)
-	if diags.HasError() {
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
@@ -415,12 +420,18 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 		return
 	}
 
+	nativeApp, diags := state.toNativApp(ctx)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	var appResp onelogin.Application
 	err := d.client.ExecRequest(&onelogin.Request{
 		Context:   ctx,
 		Method:    onelogin.MethodPut,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
-		Body:      state.toNativApp(ctx),
+		Body:      nativeApp,
 		RespModel: &appResp,
 	})
 	if err != nil {
@@ -511,7 +522,7 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 	d.Append(diags...)
 }
 
-func (state *oneloginApp) toNativApp(ctx context.Context) *onelogin.Application {
+func (state *oneloginApp) toNativApp(ctx context.Context) (*onelogin.Application, diag.Diagnostics) {
 	app := &onelogin.Application{
 		ID:                    state.ID.ValueInt64(),
 		Name:                  state.Name.ValueString(),
@@ -587,10 +598,31 @@ func (state *oneloginApp) toNativApp(ctx context.Context) *onelogin.Application 
 		}
 	}
 
-	return app
+	diags := diag.Diagnostics{}
+	if !state.Configuration.IsNull() && !state.Configuration.IsUnknown() {
+		switch value := state.Configuration.UnderlyingValue().(type) {
+		case types.Object:
+			app.Configuration = map[string]interface{}{}
+			for k, v := range value.Attributes() {
+				switch vtyped := v.(type) {
+				case types.String:
+					app.Configuration[k] = vtyped.ValueString()
+				case types.Int64:
+					app.Configuration[k] = vtyped.ValueInt64()
+				}
+			}
+		default:
+			diags.AddError("unknown type for configuration block", "should be object")
+			return nil, diags
+		}
+	}
+
+	return app, nil
 }
 
 func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, diag.Diagnostics) {
+	diags := diag.Diagnostics{}
+
 	state := &oneloginApp{
 		ID:                    types.Int64Value(app.ID),
 		Name:                  types.StringValue(app.Name),
@@ -614,7 +646,6 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 		state.ProvisioningEnabled = types.BoolValue(app.Provisioning.Enabled)
 	}
 
-	diags := diag.Diagnostics{}
 	if app.SSO == nil {
 		state.SSO = types.ObjectNull(oneloginAppSSOTypes())
 	} else {
@@ -630,8 +661,9 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 			CertificateValue: types.StringPointerValue(app.SSO.Certificate.CertificateValue),
 			CertificateName:  types.StringPointerValue(app.SSO.Certificate.CertificateName),
 		}
-		tmp, diags := types.ObjectValueFrom(ctx, oneloginAppSSOTypes(), sso)
-		if diags.HasError() {
+		tmp, newDiags := types.ObjectValueFrom(ctx, oneloginAppSSOTypes(), sso)
+		diags.Append(newDiags...)
+		if newDiags.HasError() {
 			state.SSO = types.ObjectNull(oneloginAppSSOTypes())
 		} else {
 			state.SSO = tmp
@@ -639,27 +671,22 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 	}
 
 	if app.Configuration == nil {
-		state.Configuration = types.MapNull(types.StringType)
+		state.Configuration = types.DynamicNull()
 	} else {
-		newConfig := map[string]interface{}{}
-		for k, v := range app.Configuration {
-			if v != nil {
-				newConfig[k] = fmt.Sprintf("%v", v)
-			}
-		}
-
-		tmp, diags := types.MapValueFrom(ctx, types.StringType, newConfig)
-		if diags.HasError() {
-			state.Configuration = types.MapNull(types.StringType)
+		objecttypes, objectvalues := getTypesAndValuesForConnector(app.ConnectorID, app.Configuration)
+		tmp, newDiags := types.ObjectValue(objecttypes, objectvalues)
+		diags.Append(newDiags...)
+		if newDiags.HasError() {
+			state.Configuration = types.DynamicNull()
 		} else {
-			state.Configuration = tmp
+			state.Configuration = types.DynamicValue(tmp)
 		}
 	}
 
 	if app.Parameters == nil {
 		state.Parameters = types.MapNull(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx))
 	} else {
-		diags := diag.Diagnostics{}
+		paramdiags := diag.Diagnostics{}
 		tmpParams := map[string]attr.Value{}
 		for k, v := range app.Parameters {
 			param := oneloginAppParameter{
@@ -676,16 +703,72 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 			}
 
 			tmp, newDiags := types.ObjectValueFrom(ctx, oneloginAppParameterTypes(), param)
-			diags.Append(newDiags...)
+			paramdiags.Append(newDiags...)
 			tmpParams[k] = tmp
 		}
-		if diags.HasError() {
+		diags.Append(paramdiags...)
+		if paramdiags.HasError() {
 			state.Parameters = types.MapNull(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx))
 		} else {
-			state.Parameters, diags = types.MapValue(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx), tmpParams)
+			tmp, newDiags := types.MapValue(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx), tmpParams)
+			diags.Append(newDiags...)
+			state.Parameters = tmp
 		}
-
 	}
 
 	return state, diags
+}
+
+func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) (map[string]attr.Type, map[string]attr.Value) {
+	var configtypes map[string]attr.Type
+	switch connectorID {
+	case 110016:
+		configtypes = map[string]attr.Type{
+			"audience":                      types.StringType,
+			"certificate_id":                types.Int64Type,
+			"consumer_url":                  types.StringType,
+			"encrypt_assertion":             types.StringType,
+			"generate_attribute_value_tags": types.StringType,
+			"login":                         types.StringType,
+			"logout_url":                    types.StringType,
+			"recipient":                     types.StringType,
+			"relaystate":                    types.StringType,
+			"saml_encryption_method_id":     types.StringType,
+			"saml_initiater_id":             types.StringType,
+			"saml_issuer_type":              types.StringType,
+			"saml_nameid_format_id":         types.StringType,
+			"saml_nameid_format_id_slo":     types.StringType,
+			"saml_notbefore":                types.StringType,
+			"saml_notonorafter":             types.StringType,
+			"saml_sessionnotonorafter":      types.StringType,
+			"saml_sign_element":             types.StringType,
+			"sign_slo_request":              types.StringType,
+			"sign_slo_response":             types.StringType,
+			"signature_algorithm":           types.StringType,
+			"validator":                     types.StringType,
+		}
+	}
+
+	configvalues := map[string]attr.Value{}
+	for k, t := range configtypes {
+		if mapvalue, ok := m[k]; ok {
+			switch t {
+			case types.StringType:
+				if mapvalue == nil {
+					delete(configtypes, k)
+				} else {
+					configvalues[k] = types.StringValue(mapvalue.(string))
+				}
+			case types.Int64Type:
+				// json -> map converts ints to floats
+				if mapvalue == nil {
+					delete(configtypes, k)
+				} else {
+					configvalues[k] = types.Int64Value(int64(mapvalue.(float64)))
+				}
+			}
+		}
+	}
+
+	return configtypes, configvalues
 }
