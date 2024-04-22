@@ -26,7 +26,7 @@ description: |-
 - `auth_method` (Number)
 - `auth_method_description` (String)
 - `brand_id` (Number)
-- `configuration` (Map of String)
+- `configuration` (Dynamic)
 - `description` (String)
 - `icon_url` (String)
 - `notes` (String)
