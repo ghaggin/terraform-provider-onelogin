@@ -93,13 +93,3 @@ provider "onelogin" {
   subdomain     = var.SUBDOMAIN
 }
 ```
-
-# TODO
-- [ ] Applications
-  - [ ] SAML
-  - [ ] SCIM
-  - ...
-- [ ] Application Rules
-- [ ] Mappings
-- [ ] Users
-- [ ] Roles
