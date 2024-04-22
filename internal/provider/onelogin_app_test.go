@@ -32,6 +32,7 @@ func (s *providerTestSuite) TestAccResourceAppMisc() {
 	s.Contains(sresp.Schema.Attributes, "id")
 }
 
+// TODO: test configuration blocks for each app type
 func (s *providerTestSuite) TestAccResourceApp() {
 	name := "test_app_" + acctest.RandStringFromCharSet(5, acctest.CharSetAlphaNum)
 	connectorID := "110016"
@@ -310,7 +311,10 @@ func (s *providerTestSuite) Test_appToState() {
 		s.T().Fatal("expected Parameters to be non-unknown")
 	}
 
-	newApp := state.toNativApp(context.Background())
+	newApp, diags := state.toNativApp(context.Background())
+	if diags.HasError() {
+		s.T().Fatalf("unexpected error: %v", diags.Errors())
+	}
 
 	s.Equal(app.ID, newApp.ID)
 	s.Equal(app.SSO.ClientID, newApp.SSO.ClientID)

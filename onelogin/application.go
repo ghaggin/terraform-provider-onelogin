@@ -39,6 +39,7 @@ type ApplicationParameter struct {
 	SkipIfBlank             bool   `json:"skip_if_blank,omitempty"`
 
 	// can be nil
+	// TODO: defaultValues can be any type
 	DefaultValues             *string `json:"default_values,omitempty"`
 	UserAttributeMappings     *string `json:"user_attribute_mappings,omitempty"`
 	UserAttributeMacros       *string `json:"user_attribute_macros,omitempty"`
@@ -62,4 +63,29 @@ type ApplicationCertificate struct {
 	CertificateID    *int64  `json:"certificate_id,omitempty"`
 	CertificateValue *string `json:"certificate_value,omitempty"`
 	CertificateName  *string `json:"certificate_name,omitempty"`
+}
+
+type Configuration_110016 struct {
+	Audience                   *string `json:"audience,omitempty"`
+	CertificateID              int     `json:"certificate_id,omitempty"`
+	ConsumerURL                *string `json:"consumer_url,omitempty"`
+	EncryptAssertion           *string `json:"encrypt_assertion,omitempty"`
+	GenerateAttributeValueTags *string `json:"generate_attribute_value_tags,omitempty"`
+	Login                      *string `json:"login,omitempty"`
+	LogoutURL                  *string `json:"logout_url,omitempty"`
+	Recipient                  *string `json:"recipient,omitempty"`
+	RelayState                 *string `json:"relaystate,omitempty"`
+	SAMLEncryptionMethodID     *string `json:"saml_encryption_method_id,omitempty"`
+	SAMLInitiatorID            *string `json:"saml_initiater_id,omitempty"`
+	SAMLIssuerType             *string `json:"saml_issuer_type,omitempty"`
+	SAMLNameIDFormatID         *string `json:"saml_nameid_format_id,omitempty"`
+	SAMLNameIDFormatIDSLO      *string `json:"saml_nameid_format_id_slo,omitempty"`
+	SAMLNotBefore              *string `json:"saml_notbefore,omitempty"`
+	SAMLNotOnOrAfter           *string `json:"saml_notonorafter,omitempty"`
+	SAMLSessionNotonOrAfter    *string `json:"saml_sessionnotonorafter,omitempty"`
+	SAMLSignElement            *string `json:"saml_sign_element,omitempty"`
+	SignSLORequest             *string `json:"sign_slo_request,omitempty"`
+	SignSLOResponse            *string `json:"sign_slo_response,omitempty"`
+	SignatureAlgorithm         string  `json:"signature_algorithm,omitempty"`
+	Validator                  *string `json:"validator,omitempty"`
 }
