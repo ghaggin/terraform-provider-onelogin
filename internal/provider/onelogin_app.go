@@ -297,6 +297,9 @@ func (d *oneloginAppResource) Schema(ctx context.Context, req resource.SchemaReq
 				PlanModifiers: []planmodifier.Dynamic{
 					dynamicplanmodifier.UseStateForUnknown(),
 				},
+				// TODO: describe all the intricacies of app configurations
+				Description:         "see documentation for specific values",
+				MarkdownDescription: onelogin.ConfigurationMarkdownDescription,
 			},
 			"parameters": schema.MapNestedAttribute{
 				NestedObject: schema.NestedAttributeObject{
@@ -746,6 +749,13 @@ func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) 
 			"sign_slo_response":             types.StringType,
 			"signature_algorithm":           types.StringType,
 			"validator":                     types.StringType,
+		}
+	case 141102:
+		configtypes = map[string]attr.Type{
+			"audience":            types.StringType,
+			"consumer":            types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
 		}
 	}
 
