@@ -26,7 +26,68 @@ description: |-
 - `auth_method` (Number)
 - `auth_method_description` (String)
 - `brand_id` (Number)
-- `configuration` (Dynamic)
+- `configuration` (Dynamic) configuration varies by connector id
+	- [110016] SAML Custom Connector (Advanced)
+		- `audience` (String) - free form
+		- `certificate_id` (Int64)
+		- `consumer_url` (String) - REQUIRED - ACS (Consumer) URL - free form
+		- `encrypt_assertion` (String)
+			- "0" = false
+			- "1" = true
+		- `generate_attribute_value_tags` (String)
+			- "0" = false
+			- "1" = true
+		- `login` (String) - REQUIRED if SP is SAML Initiator - free form
+		- `logout_url` (String) - free form
+		- `recipient` (String) - free form
+		- `relaystate` (String) - free form
+		- `saml_encryption_method_id` (String)
+			- "0" = TRIPLEDES-CBC
+			- "1" = AES-128-CBC
+			- "2" = AES-192-CBC
+			- "3" = AES-256-CBC
+		- `saml_initiater_id` (String)
+			- "0" = OneLogin
+			- "1" = Service Provider
+		- `saml_issuer_type` (String)
+			- "0" = Specific
+			- "1" = Generic
+		- `saml_nameid_format_id` (String)
+			- "0" = Email
+			- "1" = Transient
+			- "2" = Persistent
+			- "3" = Unspecified
+		- `saml_nameid_format_id_slo` (String)
+			- "0" = false
+			- "1" = true
+		- `saml_notbefore` (String) - REQUIRED - time in minutes
+		- `saml_notonorafter` (String) - REQUIRED - time in minutes
+		- `saml_sessionnotonorafter` (String) - time in minutes (Default 1440 minutes, i.e. 24 hours)
+		- `saml_sign_element` (String)
+			- "0" = Response
+			- "1" = Assertion
+			- "2" = Both
+		- `sign_slo_request` (String)
+			- "0" = false
+			- "1" = true
+		- `sign_slo_response` (String)
+			- "0" = false
+			- "1" = true
+		- `signature_algorithm` (String) one of the following
+			- "SHA-1"
+			- "SHA-256"
+			- "SHA-384"
+			- "SHA-512"
+		- `validator` (String) - REQUIRED - ACS (Consumer) URL Validator - free form (regex)
+	- [141102] Tableau Online (SSO)
+		- `audience` (String) - free form
+		- `consumer` (String) - REQUIRED - ACS (Consumer) URL - free form
+		- `certificate_id` (Int64)
+		- `signature_algorithm` (String) one of the following
+			- "SHA-1"
+			- "SHA-256"
+			- "SHA-384"
+			- "SHA-512"
 - `description` (String)
 - `icon_url` (String)
 - `notes` (String)
