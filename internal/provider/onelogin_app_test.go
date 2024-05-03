@@ -232,6 +232,185 @@ func (s *providerTestSuite) TestAccResourceApp() {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+
+			{
+				// Test SAML Custome (Advanced) configuration
+				Config: s.providerConfig + `
+					resource "onelogin_app" "test_terraform_saml_advanced" {
+						name                 = "test_terraform_saml_advanced"
+						connector_id         = 110016
+						allow_assumed_signin = false
+						visible              = true
+						parameters = {
+							"saml_username" = {
+								label                    = "NameID value"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+						}
+						configuration = {
+							certificate_id                = 418778
+							encrypt_assertion             = "1"
+							signature_algorithm           = "SHA-1"
+							saml_encryption_method_id     = "3",
+							saml_initiater_id             = "0",
+							saml_issuer_type              = "1",
+							saml_nameid_format_id         = "1",
+							saml_notbefore                = "3",
+							saml_notonorafter             = "3",
+							saml_sessionnotonorafter      = "1440",
+							saml_sign_element             = "2",
+							sign_slo_request              = "1",
+							sign_slo_response             = "1",
+							signature_algorithm           = "SHA-1",
+							validator                     = "test"
+							login                         = "test login"
+							generate_attribute_value_tags = "1"
+							saml_nameid_format_id_slo     = "1"
+						}
+					}
+				`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "name", "test_terraform_saml_advanced"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "connector_id", "110016"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "visible", "true"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "allow_assumed_signin", "false"),
+
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "id"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "icon_url"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "created_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "updated_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "auth_method"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_saml_advanced", "auth_method_description"),
+
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_saml_advanced", "description"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_saml_advanced", "tab_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_saml_advanced", "notes"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_saml_advanced", "policy_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_saml_advanced", "brand_id"),
+
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_saml_advanced", "sso.acs_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-post/sso/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_saml_advanced", "sso.issuer", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_saml_advanced", "sso.metadata_url", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_saml_advanced", "sso.sls_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-redirect/slo/[0-9]+$`)),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "parameters.%", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "parameters.saml_username.label", "NameID value"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "parameters.saml_username.provisioned_entitlements", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "parameters.saml_username.skip_if_blank", "false"),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.certificate_id", "418778"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.encrypt_assertion", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.signature_algorithm", "SHA-1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_encryption_method_id", "3"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_initiater_id", "0"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_issuer_type", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_nameid_format_id", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_notbefore", "3"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_notonorafter", "3"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_sessionnotonorafter", "1440"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_sign_element", "2"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.sign_slo_request", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.sign_slo_response", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.signature_algorithm", "SHA-1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.validator", "test"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.login", "test login"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.generate_attribute_value_tags", "1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_saml_advanced", "configuration.saml_nameid_format_id_slo", "1"),
+				),
+			},
+
+			{
+				// Test Tableau Online (SSO) configuration
+				Config: s.providerConfig + `
+					resource "onelogin_app" "test_terraform_tableau" {
+						name                 = "test_terraform_tableau"
+						connector_id         = 141102
+						allow_assumed_signin = false
+						provisioning_enabled = false
+						visible              = false
+						icon_url             = "https://cdn01.onelogin.com/images/icons/square/tableauonline_saml/original.png?1602130497"
+						parameters = {
+							"saml_username" = {
+								label                    = "Email"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"scimusername" = {
+								label                    = "SCIM Username"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"groups" = {
+								label                    = "Groups"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"entitlements" = {
+								label                    = "Site Role"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"firstName" = {
+								label                    = "First Name"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"email" = {
+								label                    = "Email(attribute)"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+							"lastName" = {
+								label                    = "Last Name"
+								provisioned_entitlements = false
+								skip_if_blank            = false
+							}
+						}
+						configuration = {
+							audience            = "https://sso.online.tableau.com/public/sp/metadata/1234"
+							consumer            = "https://sso.online.tableau.com/public/sp/SSO/4321"
+							signature_algorithm = "SHA-1"
+							certificate_id      = 418778
+						}
+					}
+				`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "name", "test_terraform_tableau"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "connector_id", "141102"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "visible", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "allow_assumed_signin", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "provisioning_enabled", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "icon_url", "https://cdn01.onelogin.com/images/icons/square/tableauonline_saml/original.png?1602130497"),
+
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_tableau", "id"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_tableau", "created_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_tableau", "updated_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_tableau", "auth_method"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_tableau", "auth_method_description"),
+
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_tableau", "description"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_tableau", "tab_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_tableau", "notes"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_tableau", "policy_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_tableau", "brand_id"),
+
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_tableau", "sso.acs_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-post/sso/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_tableau", "sso.issuer", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_tableau", "sso.metadata_url", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_tableau", "sso.sls_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-redirect/slo/[0-9]+$`)),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "parameters.%", "7"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "parameters.saml_username.label", "Email"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "parameters.saml_username.provisioned_entitlements", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "parameters.saml_username.skip_if_blank", "false"),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "configuration.audience", "https://sso.online.tableau.com/public/sp/metadata/1234"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "configuration.consumer", "https://sso.online.tableau.com/public/sp/SSO/4321"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "configuration.signature_algorithm", "SHA-1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "configuration.certificate_id", "418778"),
+				),
+			},
 		},
 	})
 }
