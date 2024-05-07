@@ -411,6 +411,150 @@ func (s *providerTestSuite) TestAccResourceApp() {
 					resource.TestCheckResourceAttr("onelogin_app.test_terraform_tableau", "configuration.certificate_id", "418778"),
 				),
 			},
+
+			{
+				// Test Shortcut configuration
+				Config: s.providerConfig + `
+					resource "onelogin_app" "test_terraform_shortcut" {
+						name                 = "test_terraform_shortcut"
+						connector_id         = 14571
+						allow_assumed_signin = false
+						provisioning_enabled = false
+						visible              = false
+						configuration = {
+							url 					= "https://example.com"
+							certificate_id			= 418778
+							signature_algorithm 	= "SHA-1"
+						}
+					}
+				`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "name", "test_terraform_shortcut"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "connector_id", "14571"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "visible", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "allow_assumed_signin", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "provisioning_enabled", "false"),
+
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "id"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "created_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "updated_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "auth_method"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "auth_method_description"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_shortcut", "icon_url"),
+
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_shortcut", "description"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_shortcut", "tab_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_shortcut", "notes"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_shortcut", "policy_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_shortcut", "brand_id"),
+
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_shortcut", "sso.acs_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-post/sso/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_shortcut", "sso.issuer", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_shortcut", "sso.metadata_url", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_shortcut", "sso.sls_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-redirect/slo/[0-9]+$`)),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_shortcut", "configuration.url", "https://example.com"),
+				),
+			},
+
+			{
+				// Test Salesforce Sandbox
+				Config: s.providerConfig + `
+				  resource "onelogin_app" "test_terraform_salesforce_sandbox" {
+					name                 = "test_terraform_salesforce_sandbox"
+					connector_id         = 31697
+					allow_assumed_signin = false
+					provisioning_enabled = false
+					visible              = false
+					configuration = {
+						certificate_id	   = 418778
+					  signature_algorithm  = "SHA-1"
+					  update_entitlements  = "0"
+					  provisioning_version = "2"
+					  url                  = "https://test.salesforce.com?so=123456789"
+					  subdomain            = "test"
+					}
+					parameters = {
+					  "UserRoleId" = {
+						label                    = "Role"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "UserRoleId" = {
+						label                    = "Role"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "ManagerId" = {
+						label                    = "Manager"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "TimeZoneSidKey" = {
+						label                    = "Time Zone"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "PermissionSetId" = {
+						label                    = "Permission Sets"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "LocaleSidKey" = {
+						label                    = "Locale"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "Email" = {
+						label                    = "Email"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "saml_username" = {
+						label                    = "User ID"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					  "ProfileId" = {
+						label                    = "Profile"
+						provisioned_entitlements = false
+						skip_if_blank            = false
+					  }
+					}
+				  }
+				`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "name", "test_terraform_salesforce_sandbox"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "connector_id", "31697"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "visible", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "allow_assumed_signin", "false"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "provisioning_enabled", "false"),
+
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "id"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "created_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "updated_at"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "auth_method"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "auth_method_description"),
+					resource.TestCheckResourceAttrSet("onelogin_app.test_terraform_salesforce_sandbox", "icon_url"),
+
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "description"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "tab_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "notes"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "policy_id"),
+					resource.TestCheckNoResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "brand_id"),
+
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_salesforce_sandbox", "sso.acs_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-post/sso/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_salesforce_sandbox", "sso.issuer", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_salesforce_sandbox", "sso.metadata_url", checkRegex(`^https://app\.onelogin\.com/saml/metadata/[a-z0-9-]+$`)),
+					resource.TestCheckResourceAttrWith("onelogin_app.test_terraform_salesforce_sandbox", "sso.sls_url", checkRegex(`^https://[^\.]+\.onelogin\.com/trust/saml2/http-redirect/slo/[0-9]+$`)),
+
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "configuration.url", "https://test.salesforce.com?so=123456789"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "configuration.signature_algorithm", "SHA-1"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "configuration.update_entitlements", "0"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "configuration.provisioning_version", "2"),
+					resource.TestCheckResourceAttr("onelogin_app.test_terraform_salesforce_sandbox", "configuration.subdomain", "test"),
+				),
+			},
 		},
 	})
 }

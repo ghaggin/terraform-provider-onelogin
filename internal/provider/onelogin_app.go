@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -666,24 +667,26 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 		}
 		tmp, newDiags := types.ObjectValueFrom(ctx, oneloginAppSSOTypes(), sso)
 		diags.Append(newDiags...)
-		if newDiags.HasError() {
-			state.SSO = types.ObjectNull(oneloginAppSSOTypes())
-		} else {
-			state.SSO = tmp
+		if diags.HasError() {
+			return nil, diags
 		}
+		state.SSO = tmp
 	}
 
 	if app.Configuration == nil {
 		state.Configuration = types.DynamicNull()
 	} else {
-		objecttypes, objectvalues := getTypesAndValuesForConnector(app.ConnectorID, app.Configuration)
+		objecttypes, objectvalues, err := getTypesAndValuesForConnector(app.ConnectorID, app.Configuration)
+		if err != nil {
+			diags.AddError(err.Error(), "")
+			return nil, diags
+		}
 		tmp, newDiags := types.ObjectValue(objecttypes, objectvalues)
 		diags.Append(newDiags...)
-		if newDiags.HasError() {
-			state.Configuration = types.DynamicNull()
-		} else {
-			state.Configuration = types.DynamicValue(tmp)
+		if diags.HasError() {
+			return nil, diags
 		}
+		state.Configuration = types.DynamicValue(tmp)
 	}
 
 	if app.Parameters == nil {
@@ -710,11 +713,14 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 			tmpParams[k] = tmp
 		}
 		diags.Append(paramdiags...)
-		if paramdiags.HasError() {
-			state.Parameters = types.MapNull(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx))
+		if diags.HasError() {
+			return nil, diags
 		} else {
 			tmp, newDiags := types.MapValue(types.ObjectNull(oneloginAppParameterTypes()).Type(ctx), tmpParams)
 			diags.Append(newDiags...)
+			if diags.HasError() {
+				return nil, diags
+			}
 			state.Parameters = tmp
 		}
 	}
@@ -722,10 +728,11 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 	return state, diags
 }
 
-func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) (map[string]attr.Type, map[string]attr.Value) {
+func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) (map[string]attr.Type, map[string]attr.Value, error) {
 	var configtypes map[string]attr.Type
 	switch connectorID {
 	case 110016:
+		// SAML Custom Connector (Advanced)
 		configtypes = map[string]attr.Type{
 			"audience":                      types.StringType,
 			"certificate_id":                types.Int64Type,
@@ -750,13 +757,1138 @@ func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) 
 			"signature_algorithm":           types.StringType,
 			"validator":                     types.StringType,
 		}
+	case 14571:
+		// Shortcut
+		configtypes = map[string]attr.Type{
+			"url":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 31697:
+		// Salesforce Sandbox
+		configtypes = map[string]attr.Type{
+			"provisioning_version": types.StringType,
+			"url":                  types.StringType,
+			"subdomain":            types.StringType,
+			"update_entitlements":  types.StringType,
+			"signature_algorithm":  types.StringType,
+			"certificate_id":       types.Int64Type,
+		}
+	case 42405:
+		// SAML Test Connector (IdP)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"validator":           types.StringType,
+			"logout_url":          types.StringType,
+			"relaystate":          types.StringType,
+			"audience":            types.StringType,
+			"recipient":           types.StringType,
+			"signature_algorithm": types.StringType,
+			"consumer_url":        types.StringType,
+		}
+	case 42657:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"consumer_url":        types.StringType,
+			"signature_algorithm": types.StringType,
+			"audience":            types.StringType,
+			"validator":           types.StringType,
+			"recipient":           types.StringType,
+			"logout_url":          types.StringType,
+			"relaystate":          types.StringType,
+		}
+	case 29255:
+		// Salesforce
+		configtypes = map[string]attr.Type{
+			"provisioning_version": types.StringType,
+			"signature_algorithm":  types.StringType,
+			"url":                  types.StringType,
+			"update_entitlements":  types.StringType,
+			"certificate_id":       types.Int64Type,
+		}
+	case 43457:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"logout_url":          types.StringType,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"consumer_url":        types.StringType,
+			"validator":           types.StringType,
+			"recipient":           types.StringType,
+			"relaystate":          types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 49734:
+		// ServiceNow Multi Tenant
+		configtypes = map[string]attr.Type{
+			"login":               types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"url":                 types.StringType,
+			"relaystate":          types.StringType,
+		}
+	case 65663:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"relaystate":          types.StringType,
+			"audience":            types.StringType,
+			"certificate_id":      types.Int64Type,
+			"consumer_url":        types.StringType,
+			"validator":           types.StringType,
+			"recipient":           types.StringType,
+			"logout_url":          types.StringType,
+			"signature_algorithm": types.StringType,
+			"login_url":           types.StringType,
+		}
+	case 43753:
+		// Wordpress
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"relaystate":          types.StringType,
+			"consumer_url":        types.StringType,
+			"slo":                 types.StringType,
+		}
+	case 56723:
+		// Quicklink SP (GET)
+		configtypes = map[string]attr.Type{
+			"login_url":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 159123:
+		// DocuSign Admin API (Prod)
+		configtypes = map[string]attr.Type{
+			"account_id":          types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"idpid":               types.StringType,
+			"organization_id":     types.StringType,
+		}
+	case 4513:
+		// Zendesk
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"url":                 types.StringType,
+			"subdomain":           types.StringType,
+		}
+	case 45504:
+		// SCIM Provisioner with SAML (SCIM v2 Core)
+		configtypes = map[string]attr.Type{
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"consumer":            types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 130179:
+		// SCIM Provisioner with SAML (SCIM v2 Enterprise)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"consumer":            types.StringType,
+			"audience":            types.StringType,
+		}
+	case 7170:
+		// G Suite (Shared Accounts)
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"api_email":           types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 150771:
+		// DocuSign Admin API (Demo)
+		configtypes = map[string]attr.Type{
+			"account_id":          types.StringType,
+			"certificate_id":      types.Int64Type,
+			"organization_id":     types.StringType,
+			"signature_algorithm": types.StringType,
+			"idpid":               types.StringType,
+		}
+	case 140809:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"docusignEntityId":    types.StringType,
+			"signature_algorithm": types.StringType,
+			"login_url":           types.StringType,
+		}
+	case 49677:
+		// Tableau Server(Signed Response)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"prefix":              types.StringType,
+			"audience":            types.StringType,
+			"logout_url":          types.StringType,
+			"server":              types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 2885:
+		// Workday
+		configtypes = map[string]attr.Type{
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"url":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 907:
+		// G Suite
+		configtypes = map[string]attr.Type{
+			"certificate_id":         types.Int64Type,
+			"signature_algorithm":    types.StringType,
+			"api_email":              types.StringType,
+			"domain":                 types.StringType,
+			"provision_entitlements": types.StringType,
+		}
+	case 55873:
+		// OpenDNS
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 15452:
+		// SpringCM - UAT
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 133809:
+		// Intercom
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 68859:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"Organization ID":     types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 156557:
+		// SCIM Provisioner with SAML (SCIM v2 Enterprise, full SAML)
+		configtypes = map[string]attr.Type{
+			"login":                         types.StringType,
+			"saml_notonorafter":             types.StringType,
+			"encrypt_assertion":             types.StringType,
+			"consumer_url":                  types.StringType,
+			"validator":                     types.StringType,
+			"saml_encryption_method_id":     types.StringType,
+			"saml_notbefore":                types.StringType,
+			"saml_issuer_type":              types.StringType,
+			"sign_slo_request":              types.StringType,
+			"sign_slo_response":             types.StringType,
+			"signature_algorithm":           types.StringType,
+			"saml_nameid_format_id_slo":     types.StringType,
+			"audience":                      types.StringType,
+			"recipient":                     types.StringType,
+			"relaystate":                    types.StringType,
+			"saml_sign_element":             types.StringType,
+			"saml_sessionnotonorafter":      types.StringType,
+			"generate_attribute_value_tags": types.StringType,
+			"saml_initiater_id":             types.StringType,
+			"logout_url":                    types.StringType,
+			"saml_nameid_format_id":         types.StringType,
+			"certificate_id":                types.Int64Type,
+		}
+	case 72003:
+		// Frontify
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 77999:
+		// Slack
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"subdomain":           types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 105598:
+		// SAML Custom Connector (SP Shibboleth)
+		configtypes = map[string]attr.Type{
+			"consumer_url":        types.StringType,
+			"relay":               types.StringType,
+			"recipient":           types.StringType,
+			"login_url":           types.StringType,
+			"validator":           types.StringType,
+			"slo_url":             types.StringType,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 84355:
+		// GitHub Cloud Organizations
+		configtypes = map[string]attr.Type{
+			"signature_algorithm":      types.StringType,
+			"saml_sessionnotonorafter": types.StringType,
+			"scim_base_url":            types.StringType,
+			"certificate_id":           types.Int64Type,
+			"org":                      types.StringType,
+		}
+	case 134485:
+		// Adobe Creative Cloud (SP initiated SAML)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"adobeid":             types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 154612:
+		// Oracle Fusion Gen2
+		configtypes = map[string]attr.Type{
+			"logout_url":                types.StringType,
+			"consumer":                  types.StringType,
+			"certificate_id":            types.Int64Type,
+			"relaystate":                types.StringType,
+			"loginURL":                  types.StringType,
+			"encrypt_assertion":         types.StringType,
+			"saml_encryption_method_id": types.StringType,
+			"audience":                  types.StringType,
+			"signature_algorithm":       types.StringType,
+		}
+	case 125281:
+		// Egencia Direct
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"region":              types.StringType,
+			"login_url":           types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 11989:
+		// SpringCM
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"scim_base_url":       types.StringType,
+		}
+	case 112879:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"consumer_url":        types.StringType,
+			"certificate_id":      types.Int64Type,
+			"validator":           types.StringType,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"slo_url":             types.StringType,
+			"recipient":           types.StringType,
+		}
+	case 120559:
+		// Figma
+		configtypes = map[string]attr.Type{
+			"tenantid":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 90941:
+		// Formstack
+		configtypes = map[string]attr.Type{
+			"acs":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 65767:
+		// Looker
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"subdomain":           types.StringType,
+		}
+	case 127174:
+		// SentinelOne
+		configtypes = map[string]attr.Type{
+			"accountid":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"server":              types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 130413:
+		// AWS IAM Identity Center (AWS Single Sign-on)
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"consumer":            types.StringType,
+			"audience":            types.StringType,
+		}
+	case 49886:
+		// Artifactory
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 60489:
+		// HackerOne
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 11019:
+		// Smartsheet
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 37918:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"domain":              types.StringType,
+		}
+	case 121632:
+		// AirWatch (Multi ACS URL support)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"consumer_url":        types.StringType,
+			"signature_algorithm": types.StringType,
+			"validator":           types.StringType,
+		}
+	case 70856:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"validator":           types.StringType,
+			"audience":            types.StringType,
+			"relaystate":          types.StringType,
+			"consumer_url":        types.StringType,
+			"recipient":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"logout_url":          types.StringType,
+		}
+	case 2479:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"slo_url":             types.StringType,
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"consumer_url":        types.StringType,
+			"recipient":           types.StringType,
+			"validator":           types.StringType,
+		}
+	case 95219:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"consumer":            types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 76671:
+		// EHS Insight
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"subdomain":           types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 47292:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"recipient":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"validator":           types.StringType,
+			"login_url":           types.StringType,
+			"consumer_url":        types.StringType,
+			"slo_url":             types.StringType,
+		}
+	case 160658:
+		// KnowBe4
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"consumer":            types.StringType,
+			"audience":            types.StringType,
+		}
+	case 105466:
+		// Lessonly
+		configtypes = map[string]attr.Type{
+			"subdomain":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 77901:
+		// MobileIron
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 741:
+		// Google Mail
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"domain":              types.StringType,
+		}
+	case 4860:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 31802:
+		// Tableau Server
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 71476:
+		// Collective Health
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 127704:
+		// Notion
+		configtypes = map[string]attr.Type{
+			"consumer":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 108990:
+		// Asana
+		configtypes = map[string]attr.Type{
+			"certificate_id":           types.Int64Type,
+			"saml_sessionnotonorafter": types.StringType,
+			"signature_algorithm":      types.StringType,
+		}
+	case 70450:
+		// DigiCert
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 121995:
+		// SiRequest(SP Initiated)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 77614:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"login_url":           types.StringType,
+			"signature_algorithm": types.StringType,
+			"recipient":           types.StringType,
+			"consumer_url":        types.StringType,
+			"certificate_id":      types.Int64Type,
+			"validator":           types.StringType,
+			"audience":            types.StringType,
+			"slo_url":             types.StringType,
+		}
+	case 114048:
+		// Procore
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 28712:
+		// Google Drive
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 82579:
+		// Periscope Data
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 124615:
+		// Appspace Cloud
+		configtypes = map[string]attr.Type{
+			"account_id":          types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 50159:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 126186:
+		// Mixpanel
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"postback_url":        types.StringType,
+		}
+	case 99186:
+		// Memsource
+		configtypes = map[string]attr.Type{
+			"ORG_ID":              types.StringType,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 154781:
+		// Uber
+		configtypes = map[string]attr.Type{
+			"org_id":              types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 106670:
+		// SimpleLegal
+		configtypes = map[string]attr.Type{
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 152501:
+		// MeetingSelect
+		configtypes = map[string]attr.Type{
+			"subdomain":           types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 95426:
+		// RFPIO
+		configtypes = map[string]attr.Type{
+			"relaystate":          types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 149688:
+		// Workplace by Facebook Provisioning
+		configtypes = map[string]attr.Type{
+			"consumer":             types.StringType,
+			"recipient":            types.StringType,
+			"audience":             types.StringType,
+			"signature_algorithm":  types.StringType,
+			"webhook_verify_token": types.StringType,
+			"certificate_id":       types.Int64Type,
+		}
+	case 40314:
+		// Google Calendar
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"domain":              types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 40570:
+		// Absorb LMS
+		configtypes = map[string]attr.Type{
+			"consumer_url":        types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"relaystate":          types.StringType,
+			"recipient":           types.StringType,
+		}
+	case 30118:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"url":                 types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 122063:
+		// Beamery Grow
+		configtypes = map[string]attr.Type{
+			"connectionname":      types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 148084:
+		// Segment
+		configtypes = map[string]attr.Type{
+			"acs":                 types.StringType,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 47441:
+		// Sprinklr
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"number":              types.StringType,
+			"subdomain":           types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 95071:
+		// Onetrust
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 56217:
+		// Degreed
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 30117:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"url":                 types.StringType,
+		}
+	case 45714:
+		// Github Enterprise Server
+		configtypes = map[string]attr.Type{
+			"signature_algorithm":      types.StringType,
+			"domain":                   types.StringType,
+			"saml_sessionnotonorafter": types.StringType,
+			"certificate_id":           types.Int64Type,
+		}
+	case 26753:
+		// Zoom
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"subdomain":           types.StringType,
+		}
+	case 65151:
+		// GitLab (Self-managed)
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 77106:
+		// Slido
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"login":               types.StringType,
+		}
+	case 25034:
+		// ExactTarget (Salesforce Marketing Cloud)(deprecated)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"relay":               types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 94803:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"consumer_url":        types.StringType,
+			"relaystate":          types.StringType,
+			"certificate_id":      types.Int64Type,
+			"recipient":           types.StringType,
+			"validator":           types.StringType,
+			"logout_url":          types.StringType,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 95886:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"company":             types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 94329:
+		// Valimail
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 30005:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"url":                 types.StringType,
+		}
+	case 38071:
+		// ThousandEyes
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"consumer":            types.StringType,
+		}
+	case 133783:
+		// BrowserStack SSO
+		configtypes = map[string]attr.Type{
+			"acs":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 42995:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"accountid":           types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 142151:
+		// Autodesk SSO
+		configtypes = map[string]attr.Type{
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"customerID":          types.StringType,
+		}
+	case 9772:
+		// Marketo
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"munchkin_account_id": types.StringType,
+		}
+	case 96712:
+		// Sentry
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"slug":                types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 162077:
+		// Own{backup}
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"region":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 116169:
+		// Datadog
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"shard":               types.StringType,
+			"login_url":           types.StringType,
+		}
+	case 30002:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"url":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 16066:
+		// New Relic by Account
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"account_id":          types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 158861:
+		// Shortcut
+		configtypes = map[string]attr.Type{
+			"org":                 types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 110542:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"subdomain":           types.StringType,
+			"relay":               types.StringType,
+		}
+	case 107446:
+		// Tenable.io
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+		}
+	case 30003:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"url":                 types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 106368:
+		// Oracle Identity Cloud Service
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"slo":                 types.StringType,
+			"acs":                 types.StringType,
+			"certificate_id":      types.Int64Type,
+			"provider":            types.StringType,
+		}
+	case 121781:
+		// SIRequest QA(SP initiated)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 90344:
+		// Relativity
+		configtypes = map[string]attr.Type{
+			"consumer_url":        types.StringType,
+			"validator":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 46171:
+		// Meraki
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"consumer":            types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 127691:
+		// CodeSignal
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 82403:
+		// SiQ (formerly SpaceIQ)
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"consumer":            types.StringType,
+			"audience":            types.StringType,
+		}
+	case 84822:
+		// Zscaler Admin
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"cloudname":           types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 165862:
+		//  Zscaler ZDX
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 76260:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"account":             types.StringType,
+		}
+	case 53161:
+		// Expensify
+		configtypes = map[string]attr.Type{
+			"domain":              types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 137483:
+		// Airbnb for Work
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"companyid":           types.StringType,
+		}
+	case 88596:
+		// AlertMedia
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 2801:
+		// Box
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"alias":               types.StringType,
+		}
+	case 48193:
+		// Shareworks Employee
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"relay":               types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 140003:
+		// Ally.io
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"uuid":                types.StringType,
+		}
+	case 163938:
+		// SCIM Provisioner with SAML (SCIM v2 Enterprise, SCIM2 PATCH for Groups)
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"consumer":            types.StringType,
+			"audience":            types.StringType,
+		}
+	case 115252:
+		// ZScaler (All Tenants)
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"tenant":              types.StringType,
+			"signature_algorithm": types.StringType,
+			"relay":               types.StringType,
+		}
+	case 30004:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"url":                 types.StringType,
+		}
+	case 30001:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"url":                 types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 89335:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"account":             types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"audience":            types.StringType,
+		}
+	case 136206:
+		// iboss User SSO
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 121386:
+		// SCIM Provisioner w/SAML (SCIM v2 w/OAuth)
+		configtypes = map[string]attr.Type{
+			"custom_headers":      types.StringType,
+			"consumer":            types.StringType,
+			"scim_base_url":       types.StringType,
+			"auth_url":            types.StringType,
+			"site":                types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"token_uri":           types.StringType,
+			"audience":            types.StringType,
+		}
+	case 95668:
+		// Buildkite
+		configtypes = map[string]attr.Type{
+			"domain":              types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 55785:
+		// Splunk
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"audience":            types.StringType,
+			"signature_algorithm": types.StringType,
+			"logout_url":          types.StringType,
+			"consumer_url":        types.StringType,
+		}
+	case 42338:
+		// Coupa
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+			"domain":              types.StringType,
+			"url":                 types.StringType,
+		}
+	case 78887:
+		// Amazon Web Services (AWS) Multi Account
+		configtypes = map[string]attr.Type{
+			"external_role":       types.StringType,
+			"certificate_id":      types.Int64Type,
+			"external_id":         types.StringType,
+			"signature_algorithm": types.StringType,
+			"idp_list":            types.StringType,
+		}
+	case 107404:
+		// TextExpander
+		configtypes = map[string]attr.Type{
+			"domain":              types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 154478:
+		// Lucid
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 56178:
+		// SurveyMonkey
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 64290:
+		// Thomsons Online Benefits
+		configtypes = map[string]attr.Type{
+			"company_id":          types.StringType,
+			"subdomain":           types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 37247:
+		// -not found-
+		configtypes = map[string]attr.Type{
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+			"accountid":           types.StringType,
+		}
+	case 126029:
+		// Mapbox
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 85731:
+		// Amplitude
+		configtypes = map[string]attr.Type{
+			"orgid":               types.StringType,
+			"signature_algorithm": types.StringType,
+			"certificate_id":      types.Int64Type,
+		}
+	case 76209:
+		// Heroku
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"OrgID":               types.StringType,
+			"signature_algorithm": types.StringType,
+		}
+	case 95842:
+		// Oracle Planning &amp; Budgeting
+		configtypes = map[string]attr.Type{
+			"environment":         types.StringType,
+			"signature_algorithm": types.StringType,
+			"data_center":         types.StringType,
+			"certificate_id":      types.Int64Type,
+			"identity_domain":     types.StringType,
+		}
 	case 141102:
+		// Tableau Online SSO
 		configtypes = map[string]attr.Type{
 			"audience":            types.StringType,
 			"consumer":            types.StringType,
 			"certificate_id":      types.Int64Type,
 			"signature_algorithm": types.StringType,
 		}
+	case 50323:
+		// Uber Bon Appétit Staging
+		configtypes = map[string]attr.Type{
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	case 131770:
+		// NS1
+		configtypes = map[string]attr.Type{
+			"sso_id":              types.StringType,
+			"certificate_id":      types.Int64Type,
+			"signature_algorithm": types.StringType,
+		}
+	default:
+		return nil, nil, errors.New("application configuration types not defined")
 	}
 
 	configvalues := map[string]attr.Value{}
@@ -780,5 +1912,5 @@ func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) 
 		}
 	}
 
-	return configtypes, configvalues
+	return configtypes, configvalues, nil
 }
