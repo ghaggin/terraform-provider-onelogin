@@ -110,7 +110,6 @@ description: |-
 Optional:
 
 - `attributes_transformations` (String)
-- `default_values` (String)
 - `id` (Number)
 - `include_in_saml_assertion` (Boolean)
 - `label` (String)

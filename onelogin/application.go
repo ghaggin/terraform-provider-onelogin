@@ -39,13 +39,12 @@ type ApplicationParameter struct {
 	SkipIfBlank             bool   `json:"skip_if_blank,omitempty"`
 
 	// can be nil
-	// TODO: defaultValues can be any type
-	DefaultValues             *string `json:"default_values,omitempty"`
-	UserAttributeMappings     *string `json:"user_attribute_mappings,omitempty"`
-	UserAttributeMacros       *string `json:"user_attribute_macros,omitempty"`
-	AttributesTransformations *string `json:"attributes_transformations,omitempty"`
-	Values                    *string `json:"values,omitempty"`
-	IncludeInSAMLAssertion    *bool   `json:"include_in_saml_assertion,omitempty"`
+	DefaultValues             interface{} `json:"default_values,omitempty"`
+	UserAttributeMappings     *string     `json:"user_attribute_mappings,omitempty"`
+	UserAttributeMacros       *string     `json:"user_attribute_macros,omitempty"`
+	AttributesTransformations *string     `json:"attributes_transformations,omitempty"`
+	Values                    *string     `json:"values,omitempty"`
+	IncludeInSAMLAssertion    *bool       `json:"include_in_saml_assertion,omitempty"`
 }
 
 type ApplicationSSO struct {

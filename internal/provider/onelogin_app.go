@@ -64,7 +64,7 @@ type oneloginAppParameter struct {
 	ProvisionedEntitlements types.Bool   `tfsdk:"provisioned_entitlements"`
 	SkipIfBlank             types.Bool   `tfsdk:"skip_if_blank"`
 
-	DefaultValues             types.String `tfsdk:"default_values"`
+	// DefaultValues             types.String `tfsdk:"default_values"`
 	UserAttributeMappings     types.String `tfsdk:"user_attribute_mappings"`
 	UserAttributeMacros       types.String `tfsdk:"user_attribute_macros"`
 	AttributesTransformations types.String `tfsdk:"attributes_transformations"`
@@ -74,11 +74,11 @@ type oneloginAppParameter struct {
 
 func oneloginAppParameterTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"id":                         types.Int64Type,
-		"label":                      types.StringType,
-		"provisioned_entitlements":   types.BoolType,
-		"skip_if_blank":              types.BoolType,
-		"default_values":             types.StringType,
+		"id":                       types.Int64Type,
+		"label":                    types.StringType,
+		"provisioned_entitlements": types.BoolType,
+		"skip_if_blank":            types.BoolType,
+		// "default_values":             types.StringType,
 		"user_attribute_mappings":    types.StringType,
 		"user_attribute_macros":      types.StringType,
 		"attributes_transformations": types.StringType,
@@ -334,9 +334,9 @@ func (d *oneloginAppResource) Schema(ctx context.Context, req resource.SchemaReq
 							},
 						},
 
-						"default_values": schema.StringAttribute{
-							Optional: true,
-						},
+						// "default_values": schema.StringAttribute{
+						// 	Optional: true,
+						// },
 						"user_attribute_mappings": schema.StringAttribute{
 							Optional: true,
 						},
@@ -588,11 +588,11 @@ func (state *oneloginApp) toNativApp(ctx context.Context) (*onelogin.Application
 		}
 		for k, v := range params {
 			app.Parameters[k] = onelogin.ApplicationParameter{
-				ID:                        v.ID.ValueInt64(),
-				Label:                     v.Label.ValueString(),
-				ProvisionedEntitlements:   v.ProvisionedEntitlements.ValueBool(),
-				SkipIfBlank:               v.SkipIfBlank.ValueBool(),
-				DefaultValues:             v.DefaultValues.ValueStringPointer(),
+				ID:                      v.ID.ValueInt64(),
+				Label:                   v.Label.ValueString(),
+				ProvisionedEntitlements: v.ProvisionedEntitlements.ValueBool(),
+				SkipIfBlank:             v.SkipIfBlank.ValueBool(),
+				// DefaultValues:             v.DefaultValues.ValueStringPointer(),
 				UserAttributeMappings:     v.UserAttributeMappings.ValueStringPointer(),
 				UserAttributeMacros:       v.UserAttributeMacros.ValueStringPointer(),
 				AttributesTransformations: v.AttributesTransformations.ValueStringPointer(),
@@ -696,11 +696,11 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 		tmpParams := map[string]attr.Value{}
 		for k, v := range app.Parameters {
 			param := oneloginAppParameter{
-				ID:                        types.Int64Value(v.ID),
-				Label:                     types.StringValue(v.Label),
-				ProvisionedEntitlements:   types.BoolValue(v.ProvisionedEntitlements),
-				SkipIfBlank:               types.BoolValue(v.SkipIfBlank),
-				DefaultValues:             types.StringPointerValue(v.DefaultValues),
+				ID:                      types.Int64Value(v.ID),
+				Label:                   types.StringValue(v.Label),
+				ProvisionedEntitlements: types.BoolValue(v.ProvisionedEntitlements),
+				SkipIfBlank:             types.BoolValue(v.SkipIfBlank),
+				// DefaultValues:             types.StringPointerValue(v.DefaultValues),
 				UserAttributeMappings:     types.StringPointerValue(v.UserAttributeMappings),
 				UserAttributeMacros:       types.StringPointerValue(v.UserAttributeMacros),
 				AttributesTransformations: types.StringPointerValue(v.AttributesTransformations),
