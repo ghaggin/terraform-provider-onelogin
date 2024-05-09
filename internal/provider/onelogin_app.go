@@ -2,8 +2,8 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
@@ -516,8 +516,14 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 		return
 	}
 
+	// Sanitize the name
+	// Onelogin returns some characters encoded for xml
+	app.Name = regexp.MustCompile(`&amp;`).ReplaceAllString(app.Name, "&")
+	app.Name = regexp.MustCompile(`&#39;`).ReplaceAllString(app.Name, "'")
+
 	newState, diags := appToState(ctx, &app)
-	if diags.HasError() {
+	d.Append(diags...)
+	if d.HasError() {
 		return
 	}
 
@@ -678,7 +684,7 @@ func appToState(ctx context.Context, app *onelogin.Application) (*oneloginApp, d
 	} else {
 		objecttypes, objectvalues, err := getTypesAndValuesForConnector(app.ConnectorID, app.Configuration)
 		if err != nil {
-			diags.AddError(err.Error(), "")
+			diags.AddError(err.Error(), fmt.Sprintf("app_name: %s\t\tapp_id: %d\t\tconnector_id: %d", app.Name, app.ID, app.ConnectorID))
 			return nil, diags
 		}
 		tmp, newDiags := types.ObjectValue(objecttypes, objectvalues)
@@ -959,6 +965,7 @@ func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) 
 		configtypes = map[string]attr.Type{
 			"signature_algorithm": types.StringType,
 			"certificate_id":      types.Int64Type,
+			"id":                  types.StringType,
 		}
 	case 68859:
 		// -not found-
@@ -1888,7 +1895,21 @@ func getTypesAndValuesForConnector(connectorID int64, m map[string]interface{}) 
 			"signature_algorithm": types.StringType,
 		}
 	default:
-		return nil, nil, errors.New("application configuration types not defined")
+		configtypes = map[string]attr.Type{}
+		for k, v := range m {
+			if v == nil {
+				continue
+			}
+
+			switch v.(type) {
+			case float64:
+				configtypes[k] = types.Int64Type
+			case string:
+				configtypes[k] = types.StringType
+			default:
+				return nil, nil, fmt.Errorf("unrecognized type for: %v", v)
+			}
+		}
 	}
 
 	configvalues := map[string]attr.Value{}
