@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -249,6 +250,16 @@ func (d *oneloginMappingResource) Delete(ctx context.Context, req resource.Delet
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
 	})
+
+	// consider NotFound a success
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "mapping to delete not found", map[string]interface{}{
+			"name": state.Name.ValueString(),
+			"id":   state.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting mapping",

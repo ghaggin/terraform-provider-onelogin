@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -281,6 +282,16 @@ func (d *oneloginRoleResource) Delete(ctx context.Context, req resource.DeleteRe
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
 	})
+
+	// consider NotFound a success
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "role to delete not found", map[string]interface{}{
+			"name": state.Name.ValueString(),
+			"id":   state.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting role",

@@ -17,6 +17,7 @@ const (
 )
 
 var (
+	ErrNotFound          = fmt.Errorf("not found")
 	ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded")
 	ErrBadGateway        = fmt.Errorf("bad gateway")
 	ErrNoMorePages       = fmt.Errorf("no more pages")
@@ -230,6 +231,8 @@ func (c *Client) ExecRequest(req *Request) (err error) {
 	} else if resp.StatusCode/100 != 2 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))
+	} else if resp.StatusCode == 404 {
+		return ErrNotFound
 	}
 
 	if req.RespModel != nil {

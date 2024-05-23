@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -471,6 +472,16 @@ func (d *oneloginAppResource) Delete(ctx context.Context, req resource.DeleteReq
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathApps, state.ID.ValueInt64()),
 	})
+
+	// consider NotFound a success
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "app to delete not found", map[string]interface{}{
+			"name": state.Name.ValueString(),
+			"id":   state.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting app",

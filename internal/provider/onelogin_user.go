@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var _ datasource.DataSource = &oneloginUserDataSource{}
@@ -263,6 +264,16 @@ func (r *oneloginUserResource) Delete(ctx context.Context, req resource.DeleteRe
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathUsers, data.ID.ValueInt64()),
 	})
+
+	// consider NotFound a success
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "user to delete not found", map[string]interface{}{
+			"username": data.Username.ValueString(),
+			"id":       data.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"client error",
