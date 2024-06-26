@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -243,12 +245,28 @@ func (d *oneloginMappingResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 
+	// Delete calls frequenty produce 5xx errors.  Retry on those errors.
 	id := state.ID.ValueInt64()
 	err := d.client.ExecRequest(&onelogin.Request{
 		Context: ctx,
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathMappings, id),
+
+		Retry:                10,
+		RetryWait:            time.Second,
+		RetryBackoffFactor:   1,
+		RetriableStatusCodes: []int{404, 429, 500, 502, 504},
 	})
+
+	// Consider NotFound a success after retries
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "mapping to delete not found", map[string]interface{}{
+			"name": state.Name.ValueString(),
+			"id":   state.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting mapping",

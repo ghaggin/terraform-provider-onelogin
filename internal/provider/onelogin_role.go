@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ghaggin/terraform-provider-onelogin/internal/util"
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -281,6 +283,16 @@ func (d *oneloginRoleResource) Delete(ctx context.Context, req resource.DeleteRe
 		Method:  onelogin.MethodDelete,
 		Path:    fmt.Sprintf("%s/%v", onelogin.PathRoles, state.ID.ValueInt64()),
 	})
+
+	// consider NotFound a success
+	if err == onelogin.ErrNotFound {
+		tflog.Warn(ctx, "role to delete not found", map[string]interface{}{
+			"name": state.Name.ValueString(),
+			"id":   state.ID.ValueInt64(),
+		})
+		return
+	}
+
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Error deleting role",
@@ -313,12 +325,17 @@ func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.Imp
 func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers types.List) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
+	// Read requests frequently produce 5xx errors.  Retry on these errors.
 	var role onelogin.Role
 	err := d.client.ExecRequest(&onelogin.Request{
 		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, id),
 		RespModel: &role,
+
+		Retry:                3,
+		RetryWait:            time.Second,
+		RetriableStatusCodes: []int{500, 502, 504},
 	})
 	if err != nil || role.ID == 0 {
 		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())

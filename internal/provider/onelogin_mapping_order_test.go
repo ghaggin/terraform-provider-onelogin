@@ -105,11 +105,18 @@ func (s *providerTestSuite) TestAccResourceMappingOrderIntegrated() {
 		disabledIDs[i] = strconv.Itoa(int(m.ID))
 	}
 
+	maybeComma := func(s []string) string {
+		if len(s) > 0 {
+			return ","
+		}
+		return ""
+	}
+
 	enabledStr := "[" + strings.Join(enabledIDs, ",") + "]"
-	enabledStrWithNewResource1 := "[" + strings.Join(enabledIDs, ",") + ",onelogin_mapping.test.id]"
-	enabledStrWithNewResource2 := "[onelogin_mapping.test.id," + strings.Join(enabledIDs, ",") + "]"
+	enabledStrWithNewResource1 := "[" + strings.Join(enabledIDs, ",") + maybeComma(enabledIDs) + "onelogin_mapping.test.id]"
+	enabledStrWithNewResource2 := "[onelogin_mapping.test.id" + maybeComma(enabledIDs) + strings.Join(enabledIDs, ",") + "]"
 	disabledStr := "[" + strings.Join(disabledIDs, ",") + "]"
-	disabledStrWithNewResource := "[" + strings.Join(disabledIDs, ",") + ",onelogin_mapping.test.id]"
+	disabledStrWithNewResource := "[" + strings.Join(disabledIDs, ",") + maybeComma(disabledIDs) + "onelogin_mapping.test.id]"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -246,9 +253,16 @@ func (s *providerTestSuite) TestAccResourceMappingOrderIntegratedDisabledOrderin
 		disabledIDs[i] = strconv.Itoa(int(m.ID))
 	}
 
+	maybeComma := func(s []string) string {
+		if len(s) > 0 {
+			return ","
+		}
+		return ""
+	}
+
 	enabledStr := "[" + strings.Join(enabledIDs, ",") + "]"
-	disabledStrWithNewResource1 := "[onelogin_mapping.test2.id," + strings.Join(disabledIDs, ",") + ",onelogin_mapping.test1.id]"
-	disabledStrWithNewResource2 := "[" + strings.Join(disabledIDs, ",") + ",onelogin_mapping.test1.id,onelogin_mapping.test2.id]"
+	disabledStrWithNewResource1 := "[onelogin_mapping.test2.id" + maybeComma(disabledIDs) + strings.Join(disabledIDs, ",") + ",onelogin_mapping.test1.id]"
+	disabledStrWithNewResource2 := "[" + strings.Join(disabledIDs, ",") + maybeComma(disabledIDs) + "onelogin_mapping.test1.id,onelogin_mapping.test2.id]"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
