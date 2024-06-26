@@ -90,10 +90,10 @@ type Request struct {
 	RetriableStatusCodes []int
 
 	// RetryWait is the time that will be waited for between retry attempts.
-	// This will be multipled by the RetryBackoffFactor for subsequent retries
+	// This will be multiplied by the RetryBackoffFactor for subsequent retries
 	RetryWait time.Duration
 
-	// RetryBackoffFactor is the factor by which the RetryWait will be mutliplied
+	// RetryBackoffFactor is the factor by which the RetryWait will be multiplied
 	// for subsequent retries.
 	//
 	// E.g. if the RetryWait is 1 sec and the RetryBackoffFactor is 2, then the 1st

@@ -25,8 +25,6 @@ type clientTestSuite struct {
 	subdomain    string
 
 	client *Client
-
-	ctx context.Context
 }
 
 func TestRunClientTestSuite(t *testing.T) {
@@ -162,7 +160,8 @@ func (s *clientTestSuite) Test_Retries() {
 	request.Context = context.Background()
 	request.RetryWait = time.Millisecond * 100
 	request.RetryBackoffFactor = 0
-	s.client.ExecRequest(request)
+	err = s.client.ExecRequest(request)
+	s.Error(err)
 	s.Require().Equal(4, timesCalled)
 	timeBetween := []time.Duration{
 		timeCalled[1].Sub(timeCalled[0]),
@@ -188,7 +187,8 @@ func (s *clientTestSuite) Test_Retries() {
 	request.Context = context.Background()
 	request.RetryWait = time.Millisecond * 100
 	request.RetryBackoffFactor = 1
-	s.client.ExecRequest(request)
+	err = s.client.ExecRequest(request)
+	s.Error(err)
 	s.Require().Equal(4, timesCalled)
 	timeBetween = []time.Duration{
 		timeCalled[1].Sub(timeCalled[0]),
