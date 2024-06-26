@@ -146,24 +146,6 @@ func (s *providerTestSuite) Test_CreateAndDeleteLotsOfMappings() {
 	s.Equal(0, len(enabled))
 }
 
-func (s *providerTestSuite) Test_DeleteOneMapping() {
-	err := s.client.ExecRequest(&onelogin.Request{
-		Method: onelogin.MethodDelete,
-		Path:   fmt.Sprintf("%s/%d", onelogin.PathMappings, 608139),
-
-		Retry:     3,
-		RetryWait: time.Second,
-	})
-	s.Require().NoError(err)
-
-	mo := oneloginMappingOrderResource{s.client}
-	_, diags := mo.getEnabled(context.Background())
-	if diags.HasError() {
-		s.False(diags.HasError())
-		s.T().Log(diags.Errors())
-	}
-}
-
 func (s *providerTestSuite) Test_mappingToState() {
 	id := int64(1234)
 	name := "test_name"
