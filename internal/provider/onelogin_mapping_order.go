@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -64,56 +66,9 @@ func (r *oneloginMappingOrderResource) Create(ctx context.Context, req resource.
 		return
 	}
 
-	// Reconcile enabled and disabled against Onelogin
-	enabled, diags := r.getEnabled(ctx)
+	diags = r.updateOrCreate(ctx, &state)
 	if diags.HasError() {
 		resp.Diagnostics = diags
-		return
-	}
-
-	disabled, diags := r.getDisabled(ctx)
-	if diags.HasError() {
-		resp.Diagnostics = diags
-		return
-	}
-
-	if len(enabled) != len(state.Enabled) {
-		inOneloginIDs := make([]int64, len(enabled))
-		for i, m := range enabled {
-			inOneloginIDs[i] = m.ID
-		}
-		inState, inOnelogin := findDifference(state.Enabled, inOneloginIDs)
-		resp.Diagnostics.AddError("enabled length different in config and onelogin", fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin))
-		return
-	}
-
-	disabledIDs := make([]int64, len(disabled))
-	for i, m := range disabled {
-		disabledIDs[i] = m.ID
-	}
-	if len(disabled) != len(state.Disabled) {
-		inState, inOnelogin := findDifference(state.Disabled, disabledIDs)
-		resp.Diagnostics.AddError("disabled length different in config and onelogin", fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin))
-	}
-
-	if diags.HasError() {
-		return
-	}
-
-	// Reconcile enabled
-	for i, id := range state.Enabled {
-		if enabled[i].ID != id {
-			resp.Diagnostics.AddError("enabled mappings do not match onelogin", fmt.Sprintf("position: %d\nconfig: %d\nonelogin: %d", i, id, enabled[i].ID))
-			return
-		}
-	}
-
-	// Reconcile disabled
-	if inState, inOnelogin := findDifference(state.Disabled, disabledIDs); len(inState) != 0 || len(inOnelogin) != 0 {
-		resp.Diagnostics.AddError(
-			"disabled different in config and onelogin",
-			fmt.Sprintf("state not in onelogin: %v\nonelogin not in state: %v", inState, inOnelogin),
-		)
 		return
 	}
 
@@ -182,20 +137,39 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 		return
 	}
 
-	enabled, diags := r.getEnabled(ctx)
+	diags = r.updateOrCreate(ctx, &state)
 	if diags.HasError() {
 		resp.Diagnostics = diags
 		return
 	}
 
-	disabled, diags := r.getDisabled(ctx)
+	// Set state
+	diags = resp.State.Set(ctx, &state)
 	if diags.HasError() {
 		resp.Diagnostics = diags
 		return
+	}
+}
+
+func (r *oneloginMappingOrderResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	// Noop, nothing to delete in onelogin
+}
+
+func (r *oneloginMappingOrderResource) updateOrCreate(ctx context.Context, state *oneloginMappingOrder) diag.Diagnostics {
+	// get all enabled mappings from OneLogin
+	enabled, diags := r.getEnabled(ctx)
+	if diags.HasError() {
+		return diags
+	}
+
+	// get all disabled mappings from OneLogin
+	disabled, diags := r.getDisabled(ctx)
+	if diags.HasError() {
+		return diags
 	}
 
 	// Build maps of enabled and disabled.
-	// Validate that ids are not duplicated across both lists
+	// Ensure that ids are not duplicated across both lists
 	allInPlan := map[int64]bool{}
 	enabledInPlan := map[int64]bool{}
 	disabledInPlan := map[int64]bool{}
@@ -204,8 +178,10 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 		enabledInPlan[id] = true
 		_, ok := allInPlan[id]
 		if ok {
-			resp.Diagnostics.AddError("duplicate id in enabled", "Please ensure all IDs are only added to the mapping_order once")
-			return
+			diags.AddError(
+				"duplicate id in enabled",
+				fmt.Sprintf("id: %d", id),
+			)
 		}
 		allInPlan[id] = true
 	}
@@ -214,17 +190,22 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 		disabledInPlan[id] = true
 		_, ok := allInPlan[id]
 		if ok {
-			resp.Diagnostics.AddError("duplicate id in enabled", "Please ensure all IDs are only added to the mapping_order once")
-			return
+			diags.AddError(
+				"duplicate id in disabled",
+				fmt.Sprintf("id: %d", id),
+			)
 		}
 		allInPlan[id] = true
+	}
+
+	if diags.HasError() {
+		return diags
 	}
 
 	// Find any currently enabled mappings that should be disabled
 	// and disable them
 	for _, m := range enabled {
-		_, ok := disabledInPlan[m.ID]
-		if ok {
+		if _, ok := disabledInPlan[m.ID]; ok {
 			targetID := m.ID
 			m.ID = 0
 			m.Position = nil
@@ -239,19 +220,26 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
 				RespModel: &updateResp,
+
+				Retry:                10,
+				RetryWait:            time.Second,
+				RetryBackoffFactor:   1,
+				RetriableStatusCodes: []int{404, 429, 500, 502, 504},
 			})
 			if err != nil || updateResp.ID != targetID {
-				resp.Diagnostics.AddError("failed to disable mapping", fmt.Sprintf("err: %v\nresp id: %v\ntarget id: %v", err.Error(), updateResp.ID, targetID))
-				return
+				diags.AddError("failed to disable mapping", fmt.Sprintf("err: %v\nresp id: %v\ntarget id: %v", err.Error(), updateResp.ID, targetID))
 			}
 		}
+	}
+
+	if diags.HasError() {
+		return diags
 	}
 
 	// Find any currently disabled mappings that should be enabled
 	// Enable them with null position and sort them in the next step
 	for _, m := range disabled {
-		_, ok := enabledInPlan[m.ID]
-		if ok {
+		if _, ok := enabledInPlan[m.ID]; ok {
 			targetID := m.ID
 			m.ID = 0
 			m.Position = nil
@@ -266,12 +254,20 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 				Path:      fmt.Sprintf("%s/%d", onelogin.PathMappings, targetID),
 				Body:      m,
 				RespModel: &updateResp,
+
+				Retry:                10,
+				RetryWait:            time.Second,
+				RetryBackoffFactor:   1,
+				RetriableStatusCodes: []int{404, 429, 500, 502, 504},
 			})
 			if err != nil || updateResp.ID != targetID {
-				resp.Diagnostics.AddError("failed to enable mapping", fmt.Sprintf("err: %v\nresp id: %v\ntarget id: %v", err.Error(), updateResp.ID, targetID))
-				return
+				diags.AddError("failed to enable mapping", fmt.Sprintf("err: %v\nresp id: %v\ntarget id: %v", err.Error(), updateResp.ID, targetID))
 			}
 		}
+	}
+
+	if diags.HasError() {
+		return diags
 	}
 
 	// Sort enabled mappings
@@ -285,33 +281,24 @@ func (r *oneloginMappingOrderResource) Update(ctx context.Context, req resource.
 	})
 
 	if err != nil {
-		resp.Diagnostics.AddError("failed to sort mappings", err.Error())
-		return
+		diags.AddError("failed to sort mappings", err.Error())
+		return diags
 	}
 
 	// Reconcile response vs state
 	if len(sortResp) != len(state.Enabled) {
-		resp.Diagnostics.AddError("enexpected failed to sort mappings", "sort response is a different length from the state enabled list")
-		return
+		diags.AddError("enexpected failed to sort mappings", "sort response is a different length from the state enabled list")
+		return diags
 	}
 
 	for i, id := range sortResp {
 		if id != state.Enabled[i] {
-			resp.Diagnostics.AddError("failed to sort mappings", "sort response does not match state enabled list")
-			return
+			diags.AddError("failed to sort mappings", "sort response does not match state enabled list")
+			return diags
 		}
 	}
 
-	// Set state
-	diags = resp.State.Set(ctx, &state)
-	if diags.HasError() {
-		resp.Diagnostics = diags
-		return
-	}
-}
-
-func (r *oneloginMappingOrderResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	// Noop, nothing to delete in onelogin
+	return nil
 }
 
 func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelogin.Mapping, diag.Diagnostics) {
@@ -333,9 +320,11 @@ func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelog
 	// Ensure no enabled mappings have a null position
 	for _, m := range enabled {
 		if m.Position == nil {
-			diags.AddError("enabled mappings cannot have a null position", "Please update the enabled mappings to include a position")
-			return nil, diags
+			diags.AddError("enabled mappings cannot have a null position", fmt.Sprintf("id: %d\tname: %s\t", m.ID, m.Name))
 		}
+	}
+	if diags.HasError() {
+		return nil, diags
 	}
 
 	// Ensure enabled is sorted by position
@@ -345,15 +334,40 @@ func (r *oneloginMappingOrderResource) getEnabled(ctx context.Context) ([]onelog
 
 	// Ensure position value is as expected
 	// Assumptions made in this provider rely on this numbering
+
+	type outOfPositionMapping struct {
+		id               int64
+		position         int64
+		expectedPosition int
+	}
+	outOfPosition := []*outOfPositionMapping{}
 	for i, m := range enabled {
 		expectedPosition := i + 1
 		if *m.Position != int64(expectedPosition) {
-			diags.AddError(
-				"mapping positions are not linearly increasing starting at 1",
-				fmt.Sprintf("Assumptions made in this provider rely on this numbering\nMapping id %v found at position %v, expected position %v", m.ID, *m.Position, expectedPosition),
-			)
-			return nil, diags
+			outOfPosition = append(outOfPosition, &outOfPositionMapping{
+				id:               m.ID,
+				position:         *m.Position,
+				expectedPosition: expectedPosition,
+			})
 		}
+	}
+
+	if len(outOfPosition) != 0 {
+		details := &strings.Builder{}
+
+		details.WriteString("Assumptions made in this provider rely on this numbering\n\n")
+		details.WriteString("id, actual_pos, expected_pos\n")
+		details.WriteString("--------------------------\n")
+		for _, oop := range outOfPosition {
+			details.WriteString(fmt.Sprintf("%d, %d, %d\n", oop.id, oop.position, oop.expectedPosition))
+		}
+
+		diags.AddWarning(
+			"mapping positions are not linearly increasing starting at 1",
+			details.String(),
+		)
+
+		return enabled, diags
 	}
 
 	return enabled, nil

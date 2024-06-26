@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -78,6 +79,26 @@ type Request struct {
 	QueryParams QueryParamInterface
 	Body        interface{} // error returned if this can't be marshalled to json
 	RespModel   interface{} // error returned if this can't be unmarshalled from json
+
+	// Retry is the number of times that the request should retry
+	// default is 0 which means no retries
+	Retry int
+
+	// RetriableStatusCodes is a list of status codes that the request
+	// will be retried for.  If a retriable status code is not returned
+	// the request will not be retried regardless of the Retry count
+	RetriableStatusCodes []int
+
+	// RetryWait is the time that will be waited for between retry attempts.
+	// This will be multipled by the RetryBackoffFactor for subsequent retries
+	RetryWait time.Duration
+
+	// RetryBackoffFactor is the factor by which the RetryWait will be mutliplied
+	// for subsequent retries.
+	//
+	// E.g. if the RetryWait is 1 sec and the RetryBackoffFactor is 2, then the 1st
+	// retry will occur after 1sec, the 2nd after 2sec , the 3rd after 4sec, etc.
+	RetryBackoffFactor int
 }
 
 type QueryParamInterface interface {
@@ -193,6 +214,7 @@ func (c *Client) authRequest(ctx context.Context) (*authResponse, error) {
 }
 
 func (c *Client) ExecRequest(req *Request) (err error) {
+	// statusCode := 0
 	c.log.Info(req.Context, "executing request", map[string]interface{}{
 		"method": req.Method,
 		"path":   req.Path,
@@ -217,29 +239,60 @@ func (c *Client) ExecRequest(req *Request) (err error) {
 		return err
 	}
 
-	// Add default timeout
-	ctx, cancel := context.WithTimeout(httpReq.Context(), c.config.Timeout)
-	defer cancel()
+	for i := 0; i < (req.Retry + 1); i++ {
+		// Add default timeout
+		ctx, cancel := context.WithTimeout(httpReq.Context(), c.config.Timeout)
+		defer cancel()
 
-	resp, err := c.httpClient.Do(httpReq.WithContext(ctx))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+		resp, err := c.httpClient.Do(httpReq.WithContext(ctx))
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusTooManyRequests {
-	} else if resp.StatusCode/100 != 2 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))
-	} else if resp.StatusCode == 404 {
-		return ErrNotFound
-	}
+		if i != req.Retry && c.isRetriable(resp.StatusCode, req.RetriableStatusCodes) {
+			waitDur := req.RetryWait * time.Duration(pow(2, req.RetryBackoffFactor*i))
+			select {
+			case <-httpReq.Context().Done():
+				return httpReq.Context().Err()
+			case <-time.After(waitDur):
+				c.log.Info(req.Context, "retrying request", map[string]interface{}{
+					"method":       req.Method,
+					"path":         req.Path,
+					"resp_code":    resp.StatusCode,
+					"retry_num":    i + 1,
+					"retry_wait_s": waitDur.Seconds(),
+				})
+				continue
+			}
+		} else if resp.StatusCode == 404 {
+			return ErrNotFound
+		} else if resp.StatusCode/100 != 2 {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("request failed with status code %d\n%s", resp.StatusCode, string(bodyBytes))
+		}
 
-	if req.RespModel != nil {
-		return json.NewDecoder(resp.Body).Decode(req.RespModel)
+		if req.RespModel != nil {
+			return json.NewDecoder(resp.Body).Decode(req.RespModel)
+		}
+
+		return nil
 	}
 
 	return nil
+}
+
+func pow(x, y int) int {
+	return int(math.Pow(float64(x), float64(y)))
+}
+
+func (c *Client) isRetriable(statusCode int, retriableCodes []int) bool {
+	for _, rc := range retriableCodes {
+		if statusCode == rc {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) requestToHTTP(req *Request) (*http.Request, error) {
