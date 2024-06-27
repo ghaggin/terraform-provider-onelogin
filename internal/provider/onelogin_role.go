@@ -39,9 +39,9 @@ type oneloginRole struct {
 	ID   types.Int64  `tfsdk:"id"`
 	Name types.String `tfsdk:"name"`
 
-	Admins types.List `tfsdk:"admins"`
-	Apps   types.List `tfsdk:"apps"`
-	Users  types.List `tfsdk:"users"`
+	Admins types.Set `tfsdk:"admins"`
+	Apps   types.Set `tfsdk:"apps"`
+	Users  types.Set `tfsdk:"users"`
 
 	// LastUpdated attribute local to terraform object
 	LastUpdated types.String `tfsdk:"last_updated"`
@@ -66,15 +66,15 @@ func (d *oneloginRoleResource) Schema(ctx context.Context, req resource.SchemaRe
 			"name": schema.StringAttribute{
 				Required: true,
 			},
-			"admins": schema.ListAttribute{
+			"admins": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
-			"apps": schema.ListAttribute{
+			"apps": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
-			"users": schema.ListAttribute{
+			"users": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
@@ -309,7 +309,7 @@ func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.Imp
 		return
 	}
 
-	state, diags := d.read(ctx, int64(id), types.ListNull(types.Int64Type))
+	state, diags := d.read(ctx, int64(id), types.SetNull(types.Int64Type))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -322,7 +322,7 @@ func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.Imp
 	}
 }
 
-func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers types.List) (*oneloginRole, diag.Diagnostics) {
+func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers types.Set) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	// Read requests frequently produce 5xx errors.  Retry on these errors.
@@ -335,7 +335,7 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers 
 
 		Retry:                3,
 		RetryWait:            time.Second,
-		RetriableStatusCodes: []int{500, 502, 504},
+		RetriableStatusCodes: []int{404, 429, 500, 502, 504},
 	})
 	if err != nil || role.ID == 0 {
 		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())
@@ -376,24 +376,24 @@ func (state *oneloginRole) toNative(ctx context.Context) (*onelogin.Role, diag.D
 	}, diags
 }
 
-func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.List) (*oneloginRole, diag.Diagnostics) {
+func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Set) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	state := &oneloginRole{
 		ID:     types.Int64Value(role.ID),
 		Name:   types.StringValue(role.Name),
-		Admins: types.ListNull(types.Int64Type),
-		Apps:   types.ListNull(types.Int64Type),
-		Users:  types.ListNull(types.Int64Type),
+		Admins: types.SetNull(types.Int64Type),
+		Apps:   types.SetNull(types.Int64Type),
+		Users:  types.SetNull(types.Int64Type),
 	}
 
-	admins, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Admins)
+	admins, newDiags := types.SetValueFrom(ctx, types.Int64Type, role.Admins)
 	diags.Append(newDiags...)
 	if len(admins.Elements()) > 0 {
 		state.Admins = admins
 	}
 
-	apps, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Apps)
+	apps, newDiags := types.SetValueFrom(ctx, types.Int64Type, role.Apps)
 	diags.Append(newDiags...)
 	if len(apps.Elements()) > 0 {
 		state.Apps = apps
@@ -416,7 +416,7 @@ func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Li
 				roleUsersTracked = append(roleUsersTracked, id)
 			}
 		}
-		users, newDiags := types.ListValueFrom(ctx, types.Int64Type, roleUsersTracked)
+		users, newDiags := types.SetValueFrom(ctx, types.Int64Type, roleUsersTracked)
 		diags.Append(newDiags...)
 		if len(users.Elements()) > 0 {
 			state.Users = users
@@ -428,7 +428,7 @@ func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Li
 
 // state = old state
 // plan = future state
-func calculateAddRemoveUsers(ctx context.Context, plan, state types.List) ([]int64, []int64, diag.Diagnostics) {
+func calculateAddRemoveUsers(ctx context.Context, plan, state types.Set) ([]int64, []int64, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	planUsers := []int64{}

@@ -21,9 +21,9 @@ description: |-
 
 ### Optional
 
-- `admins` (List of Number)
-- `apps` (List of Number)
-- `users` (List of Number)
+- `admins` (Set of Number)
+- `apps` (Set of Number)
+- `users` (Set of Number)
 
 ### Read-Only
 
