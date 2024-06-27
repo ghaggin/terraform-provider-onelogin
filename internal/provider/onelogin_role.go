@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ghaggin/terraform-provider-onelogin/internal/util"
@@ -26,22 +28,31 @@ var (
 func NewOneLoginRoleResource(client *onelogin.Client) newResourceFunc {
 	return func() resource.Resource {
 		return &oneloginRoleResource{
-			client: client,
+			client:            client,
+			delayReadRoles:    make(map[int64]time.Time),
+			delayReadRolesMu:  sync.Mutex{},
+			delayReadDuration: time.Millisecond * 2000,
 		}
 	}
 }
 
 type oneloginRoleResource struct {
 	client *onelogin.Client
+
+	// Delay read after write variables, only enabled
+	// for testing.
+	delayReadRoles    map[int64]time.Time
+	delayReadRolesMu  sync.Mutex
+	delayReadDuration time.Duration
 }
 
 type oneloginRole struct {
 	ID   types.Int64  `tfsdk:"id"`
 	Name types.String `tfsdk:"name"`
 
-	Admins types.List `tfsdk:"admins"`
-	Apps   types.List `tfsdk:"apps"`
-	Users  types.List `tfsdk:"users"`
+	Admins types.Set `tfsdk:"admins"`
+	Apps   types.Set `tfsdk:"apps"`
+	Users  types.Set `tfsdk:"users"`
 
 	// LastUpdated attribute local to terraform object
 	LastUpdated types.String `tfsdk:"last_updated"`
@@ -66,15 +77,15 @@ func (d *oneloginRoleResource) Schema(ctx context.Context, req resource.SchemaRe
 			"name": schema.StringAttribute{
 				Required: true,
 			},
-			"admins": schema.ListAttribute{
+			"admins": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
-			"apps": schema.ListAttribute{
+			"apps": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
-			"users": schema.ListAttribute{
+			"users": schema.SetAttribute{
 				ElementType: types.Int64Type,
 				Optional:    true,
 			},
@@ -118,6 +129,8 @@ func (d *oneloginRoleResource) Create(ctx context.Context, req resource.CreateRe
 		)
 		return
 	}
+
+	d.delayReads(role.ID)
 
 	newState, diags := d.read(ctx, role.ID, state.Users)
 	if diags.HasError() {
@@ -251,6 +264,8 @@ func (d *oneloginRoleResource) Update(ctx context.Context, req resource.UpdateRe
 		}
 	}
 
+	d.delayReads(role.ID)
+
 	// I think that add and delete may return prior to the transaction being fully committed.
 	// In the case the transaction is not fully committed, the read will produce inconsistent results.
 	// We will assume that user updates are eventually consistent and update the state to their expected value.
@@ -309,7 +324,7 @@ func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.Imp
 		return
 	}
 
-	state, diags := d.read(ctx, int64(id), types.ListNull(types.Int64Type))
+	state, diags := d.read(ctx, int64(id), types.SetNull(types.Int64Type))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -322,12 +337,20 @@ func (d *oneloginRoleResource) ImportState(ctx context.Context, req resource.Imp
 	}
 }
 
-func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers types.List) (*oneloginRole, diag.Diagnostics) {
+func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers types.Set) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
+
+	// delay read after write
+	// onelogin is eventually consistent
+	err := d.maybeDelayRead(ctx, id)
+	if err != nil {
+		diags.AddError("maybeDelayRead returned error", err.Error())
+		return nil, diags
+	}
 
 	// Read requests frequently produce 5xx errors.  Retry on these errors.
 	var role onelogin.Role
-	err := d.client.ExecRequest(&onelogin.Request{
+	err = d.client.ExecRequest(&onelogin.Request{
 		Context:   ctx,
 		Method:    onelogin.MethodGet,
 		Path:      fmt.Sprintf("%s/%v", onelogin.PathRoles, id),
@@ -335,7 +358,7 @@ func (d *oneloginRoleResource) read(ctx context.Context, id int64, trackedUsers 
 
 		Retry:                3,
 		RetryWait:            time.Second,
-		RetriableStatusCodes: []int{500, 502, 504},
+		RetriableStatusCodes: []int{404, 429, 500, 502, 504},
 	})
 	if err != nil || role.ID == 0 {
 		diags.AddError("Error reading role", "Could not read role with ID "+strconv.Itoa(int(id))+": "+err.Error())
@@ -376,24 +399,24 @@ func (state *oneloginRole) toNative(ctx context.Context) (*onelogin.Role, diag.D
 	}, diags
 }
 
-func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.List) (*oneloginRole, diag.Diagnostics) {
+func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Set) (*oneloginRole, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	state := &oneloginRole{
 		ID:     types.Int64Value(role.ID),
 		Name:   types.StringValue(role.Name),
-		Admins: types.ListNull(types.Int64Type),
-		Apps:   types.ListNull(types.Int64Type),
-		Users:  types.ListNull(types.Int64Type),
+		Admins: types.SetNull(types.Int64Type),
+		Apps:   types.SetNull(types.Int64Type),
+		Users:  types.SetNull(types.Int64Type),
 	}
 
-	admins, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Admins)
+	admins, newDiags := types.SetValueFrom(ctx, types.Int64Type, role.Admins)
 	diags.Append(newDiags...)
 	if len(admins.Elements()) > 0 {
 		state.Admins = admins
 	}
 
-	apps, newDiags := types.ListValueFrom(ctx, types.Int64Type, role.Apps)
+	apps, newDiags := types.SetValueFrom(ctx, types.Int64Type, role.Apps)
 	diags.Append(newDiags...)
 	if len(apps.Elements()) > 0 {
 		state.Apps = apps
@@ -416,7 +439,7 @@ func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Li
 				roleUsersTracked = append(roleUsersTracked, id)
 			}
 		}
-		users, newDiags := types.ListValueFrom(ctx, types.Int64Type, roleUsersTracked)
+		users, newDiags := types.SetValueFrom(ctx, types.Int64Type, roleUsersTracked)
 		diags.Append(newDiags...)
 		if len(users.Elements()) > 0 {
 			state.Users = users
@@ -428,7 +451,7 @@ func roleToState(ctx context.Context, role *onelogin.Role, trackedUsers types.Li
 
 // state = old state
 // plan = future state
-func calculateAddRemoveUsers(ctx context.Context, plan, state types.List) ([]int64, []int64, diag.Diagnostics) {
+func calculateAddRemoveUsers(ctx context.Context, plan, state types.Set) ([]int64, []int64, diag.Diagnostics) {
 	diags := diag.Diagnostics{}
 
 	planUsers := []int64{}
@@ -467,4 +490,47 @@ func calculateAddRemoveUsers(ctx context.Context, plan, state types.List) ([]int
 	}
 
 	return add, remove, diags
+}
+
+func (d *oneloginRoleResource) maybeDelayRead(ctx context.Context, id int64) error {
+	// only perform this action for testing
+	// read after write is only a problem for a small number of roles
+	if os.Getenv("TF_ACC") == "" {
+		return nil
+	}
+
+	for {
+		d.delayReadRolesMu.Lock()
+
+		deadline, ok := d.delayReadRoles[id]
+		if !ok {
+			d.delayReadRolesMu.Unlock()
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			delete(d.delayReadRoles, id)
+			d.delayReadRolesMu.Unlock()
+			return nil
+		}
+
+		d.delayReadRolesMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Until(deadline)):
+		}
+	}
+}
+
+func (d *oneloginRoleResource) delayReads(id int64) {
+	// only perform this action for testing
+	// read after write is only a problem for a small number of roles
+	if os.Getenv("TF_ACC") == "" {
+		return
+	}
+
+	d.delayReadRolesMu.Lock()
+	d.delayReadRoles[id] = time.Now().Add(d.delayReadDuration)
+	d.delayReadRolesMu.Unlock()
 }
