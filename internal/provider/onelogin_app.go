@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strconv"
 
 	"github.com/ghaggin/terraform-provider-onelogin/onelogin"
@@ -393,6 +392,8 @@ func (d *oneloginAppResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	appResp.UnescapeFields()
+
 	newState, diags := appToState(ctx, &appResp)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -446,6 +447,8 @@ func (d *oneloginAppResource) Update(ctx context.Context, req resource.UpdateReq
 		)
 		return
 	}
+
+	appResp.UnescapeFields()
 
 	newState, diags := appToState(ctx, &appResp)
 	if diags.HasError() {
@@ -527,10 +530,7 @@ func (r *oneloginAppResource) read(ctx context.Context, state *oneloginApp, resp
 		return
 	}
 
-	// Sanitize the name
-	// Onelogin returns some characters encoded for xml
-	app.Name = regexp.MustCompile(`&amp;`).ReplaceAllString(app.Name, "&")
-	app.Name = regexp.MustCompile(`&#39;`).ReplaceAllString(app.Name, "'")
+	app.UnescapeFields()
 
 	newState, diags := appToState(ctx, &app)
 	d.Append(diags...)

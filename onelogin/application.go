@@ -1,5 +1,7 @@
 package onelogin
 
+import "html"
+
 type Application struct {
 	ID                    int64  `json:"id"`
 	Name                  string `json:"name"`
@@ -87,6 +89,18 @@ type Configuration_110016 struct {
 	SignSLOResponse            *string `json:"sign_slo_response,omitempty"`
 	SignatureAlgorithm         string  `json:"signature_algorithm,omitempty"`
 	Validator                  *string `json:"validator,omitempty"`
+}
+
+func (a *Application) UnescapeFields() {
+	a.Name = html.UnescapeString(a.Name)
+	if a.Description != nil {
+		description := html.UnescapeString(*a.Description)
+		a.Description = &description
+	}
+	if a.Notes != nil {
+		notes := html.UnescapeString(*a.Notes)
+		a.Notes = &notes
+	}
 }
 
 const ConfigurationMarkdownDescription = `
