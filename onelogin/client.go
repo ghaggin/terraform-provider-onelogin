@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -368,7 +369,12 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 		req.QueryParams = QueryParams{}
 	}
 
-	maxLimit, ok := c.maxPageSize[req.Path]
+	maxPageSizePath := req.Path
+	// If the path is app users, use the apps limit
+	if regexp.MustCompile(`/api/2/apps/[0-9]+/users`).MatchString(req.Path) {
+		maxPageSizePath = PathApps
+	}
+	maxLimit, ok := c.maxPageSize[maxPageSizePath]
 	if !ok {
 		return fmt.Errorf("max page size not configured for path %s", req.Path)
 	}
