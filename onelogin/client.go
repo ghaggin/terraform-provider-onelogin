@@ -429,7 +429,7 @@ func (c *Client) ExecRequestPaged(req *Request, page *Page) (err error) {
 		return err
 	}
 
-	if page.Page == totalPages {
+	if page.Page >= totalPages {
 		return ErrNoMorePages
 	}
 
